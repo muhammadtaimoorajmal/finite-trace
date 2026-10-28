@@ -24,6 +24,14 @@ from core.regex_parser import (
     parse_regex,
 )
 from core.thompson import ConstructionError, ConstructionResult, construct_nfa
+from ui.automaton_view import format_alphabet, render_automaton, state_label
+from ui.builder_modes import (
+    current_manual_automaton,
+    manual_signature,
+    render_exact_mode,
+    render_language_mode,
+    render_manual_mode,
+)
 
 APP_NAME = "FiniteTrace"
 TAGLINE = "Visualize. Convert. Simulate."
@@ -61,8 +69,9 @@ def render_header() -> None:
         unsafe_allow_html=True,
     )
     st.info(
-        "FiniteTrace is in early development. Regular expressions can be parsed, turned into "
-        "ε-NFAs and converted to DFAs today; diagrams and simulation are not available yet.",
+        "FiniteTrace is in early development. You can build automata from regular expressions, "
+        "language rules, exact strings or manual definitions and convert NFAs to DFAs; "
+        "diagrams and string simulation are not available yet.",
         icon="🛠️",
     )
 
@@ -78,6 +87,8 @@ NFA_ACTION = "nfa"
 DFA_ACTION = "dfa"
 BUTTON_LABELS = {PARSE_ACTION: "Validate & Parse", NFA_ACTION: "Generate ε-NFA", DFA_ACTION: "Generate DFA"}
 PIPELINE_ERRORS = (RegexSyntaxError, ConstructionError, ConversionError)
+BUILDER_MODES = ["Regular Expression", "Language Rule", "Exact String", "Manual Automaton"]
+CONVERTER_SOURCES = ["From Regular Expression", "From Manual NFA"]
 
 
 def parse_and_store() -> None:
@@ -161,12 +172,6 @@ def render_parse_success(parsed: ParsedRegex) -> None:
     st.dataframe(rows, hide_index=True, width="stretch")
 
 
-def format_alphabet(automaton: FiniteAutomaton) -> str:
-    if not automaton.alphabet:
-        return "{} (empty: no input symbols)"
-    return "{" + ", ".join(sorted(automaton.alphabet)) + "}"
-
-
 def render_nfa_success(expression: str, result: ConstructionResult) -> None:
     nfa = result.automaton
     st.success(
@@ -234,12 +239,6 @@ def render_construction_steps(result: ConstructionResult) -> None:
     st.dataframe(step_rows, hide_index=True, width="stretch")
 
 
-def dfa_state_label(dfa: FiniteAutomaton, state: str) -> str:
-    """Prefix a DFA state with → if initial and ★ if accepting, as in textbook tables."""
-    prefix = ("→" if state == dfa.initial_state else "") + ("★" if state in dfa.accepting_states else "")
-    return f"{prefix} {state}".strip()
-
-
 def state_role(conversion: ConversionResult, state: str) -> str:
     dfa = conversion.dfa
     roles = []
@@ -252,7 +251,7 @@ def state_role(conversion: ConversionResult, state: str) -> str:
     return ", ".join(roles) or "—"
 
 
-def render_dfa_summary(expression: str, conversion: ConversionResult) -> None:
+def render_dfa_summary(source_label: str, source: str, conversion: ConversionResult) -> None:
     dfa = conversion.dfa
     st.markdown("#### DFA summary")
     with st.container(border=True):
@@ -263,8 +262,8 @@ def render_dfa_summary(expression: str, conversion: ConversionResult) -> None:
         fourth.metric("Dead state", conversion.dead_state or "None")
         left, right = st.columns(2)
         with left:
-            st.markdown("**Regular expression**")
-            st.code(expression, language=None, wrap_lines=True)
+            st.markdown(f"**{source_label}**")
+            st.code(source, language=None, wrap_lines=True)
             st.markdown("**Initial state**")
             st.code(dfa.initial_state, language=None)
         with right:
@@ -282,7 +281,7 @@ def render_dfa_summary(expression: str, conversion: ConversionResult) -> None:
 def render_state_mapping(conversion: ConversionResult) -> None:
     st.markdown("#### DFA states as sets of NFA states")
     rows = [
-        {"DFA state": dfa_state_label(conversion.dfa, name), "NFA states": format_subset(subset),
+        {"DFA state": state_label(conversion.dfa, name), "NFA states": format_subset(subset),
          "Type": state_role(conversion, name)}
         for name, subset in conversion.state_mapping.items()
     ]
@@ -303,7 +302,7 @@ def render_dfa_transition_table(conversion: ConversionResult) -> None:
     symbols = sorted(dfa.alphabet)
     rows = []
     for state in dfa.sorted_states():
-        row = {"State": dfa_state_label(dfa, state)}
+        row = {"State": state_label(dfa, state)}
         for symbol in symbols:
             (row[symbol],) = dfa.transitions[(state, symbol)]
         rows.append(row)
@@ -317,7 +316,7 @@ def render_dfa_success(expression: str, conversion: ConversionResult) -> None:
         "every state has exactly one transition per symbol.",
         icon="✅",
     )
-    render_dfa_summary(expression, conversion)
+    render_dfa_summary("Regular expression", expression, conversion)
     render_state_mapping(conversion)
     render_dfa_transition_table(conversion)
     st.caption("See the NFA to DFA Converter tab for the step-by-step subset construction.")
@@ -353,20 +352,23 @@ def render_builder_outcome() -> None:
 
 def render_builder() -> None:
     st.subheader("Automata Builder")
-    st.write("Define a regular language and generate an equivalent ε-NFA or DFA.")
+    st.write("Define a regular language or an automaton, then inspect the resulting ε-NFA or DFA.")
+    # Tabs keep every mode's inputs rendered, so switching modes never loses them.
+    regex_tab, rule_tab, exact_tab, manual_tab = st.tabs(BUILDER_MODES)
+    with regex_tab:
+        render_regex_mode()
+    with rule_tab:
+        render_language_mode()
+    with exact_tab:
+        render_exact_mode()
+    with manual_tab:
+        render_manual_mode()
 
+
+def render_regex_mode() -> None:
     left, right = st.columns([3, 2], gap="large")
     with left:
         with st.container(border=True):
-            st.markdown("**Input method**")
-            st.radio(
-                "Input method",
-                ["Regular expression", "Language rule", "Exact string", "Manual definition"],
-                horizontal=True,
-                label_visibility="collapsed",
-                disabled=True,
-            )
-            coming_soon("Module 05 (language rules, exact strings & manual input)")
             st.text_input(
                 "Regular expression",
                 placeholder="(a|b)*abb",
@@ -497,26 +499,87 @@ def render_conversion_outcome() -> None:
         render_subset_construction(conversion)
     with st.container(border=True):
         st.markdown("### C. Converted DFA")
-        render_dfa_summary(expression, conversion)
+        render_dfa_summary("Regular expression", expression, conversion)
+        render_dfa_transition_table(conversion)
+
+
+def convert_manual_and_store() -> None:
+    """Button callback: convert the validated manual NFA saved by the Automata Builder."""
+    status, nfa = current_manual_automaton()
+    if status != "ok" or nfa.machine_type != "NFA":
+        return  # the button is disabled in this case; nothing to convert
+    try:
+        result = (nfa, convert_nfa_to_dfa(nfa))
+    except ConversionError as error:
+        result = error
+    st.session_state["converter_manual_outcome"] = (manual_signature(), result)
+
+
+def render_manual_conversion() -> None:
+    status, nfa = current_manual_automaton()
+    messages = {
+        "none": "No manual automaton yet. In the Automata Builder, open Manual Automaton, "
+                "choose NFA, enter its transitions and press Validate & Build.",
+        "stale": "The manual automaton's inputs changed after it was built. Press Validate & Build "
+                 "in the Automata Builder again before converting.",
+        "error": "The current manual automaton is invalid. Fix the error shown in the Automata Builder first.",
+    }
+    ready = status == "ok" and nfa.machine_type == "NFA"
+    with st.container(border=True):
+        if status in messages:
+            st.info(messages[status], icon="ℹ️")
+        elif not ready:
+            st.info("The manual automaton is a DFA. It is already deterministic, so there is nothing to convert. "
+                    "Choose NFA in the Automata Builder to convert a nondeterministic machine.", icon="ℹ️")
+        else:
+            st.write(f"Source: manual NFA with {len(nfa.states)} states and alphabet {format_alphabet(nfa)}.")
+        st.button("Convert NFA to DFA", key="convert_manual_button", type="primary",
+                  disabled=not ready, on_click=convert_manual_and_store)
+
+    outcome = st.session_state.get("converter_manual_outcome")
+    if not ready or outcome is None or outcome[0] != manual_signature():
+        return
+    result = outcome[1]
+    if isinstance(result, ValueError):
+        st.error(str(result), icon="⚠️")
+        return
+    nfa, conversion = result
+    st.success(
+        f"Converted a {len(nfa.states)}-state manual NFA into a {len(conversion.dfa.states)}-state DFA. "
+        "Structural validation passed.",
+        icon="✅",
+    )
+    with st.container(border=True):
+        st.markdown("### A. Manual NFA")
+        render_automaton(nfa, [("Source", "Manual NFA from Automata Builder")])
+    with st.container(border=True):
+        st.markdown("### B. Subset construction")
+        render_subset_construction(conversion)
+    with st.container(border=True):
+        st.markdown("### C. Converted DFA")
+        render_dfa_summary("Source", "Manual NFA from Automata Builder", conversion)
         render_dfa_transition_table(conversion)
 
 
 def render_converter() -> None:
     st.subheader("NFA to DFA Converter")
     st.write(
-        "Build an ε-NFA from a regular expression with Thompson's construction, then convert it "
-        "into an equivalent DFA with subset construction, step by step."
+        "Convert an NFA into an equivalent DFA with subset construction, step by step. The NFA can "
+        "come from a regular expression (via Thompson's construction) or from a manual definition."
     )
-    with st.container(border=True):
-        st.text_input(
-            "Regular Expression",
-            placeholder="(0|1)*01",
-            key="converter_input",
-            help=f"Same syntax as the Automata Builder. Maximum {MAX_EXPRESSION_LENGTH} characters.",
-        )
-        st.button("Convert NFA to DFA", key="convert_button", type="primary", on_click=convert_and_store)
-        coming_soon("Module 05 (manual NFA input)")
-    render_conversion_outcome()
+    regex_source, manual_source = st.tabs(CONVERTER_SOURCES)
+    with regex_source:
+        with st.container(border=True):
+            st.text_input(
+                "Regular Expression",
+                placeholder="(0|1)*01",
+                key="converter_input",
+                help=f"Same syntax as the Automata Builder. Maximum {MAX_EXPRESSION_LENGTH} characters.",
+            )
+            st.button("Convert NFA to DFA", key="convert_button", type="primary", on_click=convert_and_store)
+        render_conversion_outcome()
+    with manual_source:
+        render_manual_conversion()
 
 
 def render_sidebar() -> None:
@@ -536,7 +599,7 @@ def render_sidebar() -> None:
             "- **Simulate**: step through a test string and see whether it is accepted."
         )
         st.markdown("#### Status")
-        st.write("Module 04 of 10 complete: NFA-to-DFA conversion (subset construction).")
+        st.write("Module 05 of 10 complete: language rules, exact strings and manual DFA/NFA input.")
 
 
 def main() -> None:

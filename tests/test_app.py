@@ -6,11 +6,22 @@ from streamlit.testing.v1 import AppTest
 
 APP_PATH = str(Path(__file__).resolve().parent.parent / "app.py")
 
-# Controls that are allowed to be enabled (parser, ε-NFA generation, DFA conversion).
+# Controls that are allowed to be enabled (parser, ε-NFA generation, DFA conversion,
+# and the Module 05 language-rule, exact-string and manual-automaton forms).
 PARSER_WIDGET_KEYS = {
     "regex_input", "parse_button", "generate_nfa_button", "generate_dfa_button",
     "converter_input", "convert_button",
+    "lang_alphabet", "lang_pattern", "lang_symbol", "lang_generate",
+    "exact_alphabet", "exact_text", "exact_generate",
+    "manual_alphabet", "manual_states", "manual_initial", "manual_accepting", "manual_build", "manual_load",
 }
+MAIN_TABS = ["Automata Builder", "String Simulator", "NFA to DFA Converter"]
+# All tabs in page order: the main tabs with the Builder's input modes and the Converter's sources nested.
+ALL_TABS = [
+    "Automata Builder", "Regular Expression", "Language Rule", "Exact String", "Manual Automaton",
+    "String Simulator",
+    "NFA to DFA Converter", "From Regular Expression", "From Manual NFA",
+]
 
 
 def run_app() -> AppTest:
@@ -44,8 +55,8 @@ def test_app_shows_heading_and_navigation():
     assert "Interactive Finite Automata Visualizer &amp; Simulator" in page_markdown or \
         "Interactive Finite Automata Visualizer & Simulator" in page_markdown
 
-    tab_labels = [tab.label for tab in app.tabs]
-    assert tab_labels == ["Automata Builder", "String Simulator", "NFA to DFA Converter"]
+    assert [tab.label for tab in app.tabs] == ALL_TABS
+    assert [label for label in ALL_TABS if label in MAIN_TABS] == MAIN_TABS
 
 
 def test_unfinished_controls_are_disabled():
@@ -107,7 +118,7 @@ def test_editing_input_hides_stale_result():
 
 def test_other_tabs_still_render_after_parsing():
     app = parse_in_app(run_app(), "a(b|c)*")
-    assert [tab.label for tab in app.tabs] == ["Automata Builder", "String Simulator", "NFA to DFA Converter"]
+    assert [tab.label for tab in app.tabs] == ALL_TABS
     subheaders = [block.value for block in app.subheader]
     assert subheaders == ["Automata Builder", "String Simulator", "NFA to DFA Converter"]
     assert app.success  # the parse result coexists with the other sections

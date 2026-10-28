@@ -4,7 +4,7 @@
 
 FiniteTrace is an open-source, interactive tool for building, visualizing, converting and simulating finite automata: Deterministic Finite Automata (DFA) and Nondeterministic Finite Automata (NFA), including ε-NFAs. It is written in plain Python with a Streamlit interface. All automata algorithms are implemented from scratch so the code doubles as a readable reference.
 
-> **Status:** early development. Modules 01–04 of 10 are complete: the project foundation, the regular expression parser, ε-NFA construction and NFA-to-DFA conversion. Regular expressions can be parsed, turned into ε-NFAs and converted to DFAs in the app; state diagrams and string simulation are not available yet.
+> **Status:** early development. Modules 01–05 of 10 are complete. Automata can be built from regular expressions, structured language rules, exact strings or manual DFA/NFA definitions, and NFAs can be converted to DFAs. State diagrams and string simulation are not available yet.
 
 ## Objectives
 
@@ -58,7 +58,14 @@ FiniteTrace is an open-source, interactive tool for building, visualizing, conve
 - NFA-to-DFA conversion by subset construction (`core/converter.py`), with ε-closure, move, dead-state handling and a step-by-step trace.
 - **Generate DFA** in the Automata Builder and a working **NFA to DFA Converter** tab.
 
-**Not implemented yet:** language rules and manual automaton input, string simulation, graphical state diagrams and animation.
+### Implemented (Module 05)
+
+- Structured language rules (`core/language_builder.py`): starts with, ends with, contains, does not contain, does not end with, even/odd count of a symbol, and exactly *k* occurrences.
+- Exact-string automata, including the empty string.
+- Manual DFA and NFA/ε-NFA definitions with validation (`core/manual_builder.py`).
+- Conversion of a manually defined NFA in the NFA to DFA Converter.
+
+**Not implemented yet:** string simulation, graphical state diagrams and animation.
 
 ## Regular expression syntax
 
@@ -233,6 +240,113 @@ dfa = regex_to_dfa("(a|b)*abb")  # shortcut: regex -> ε-NFA -> DFA
 
 `convert_nfa_to_dfa` accepts any valid `FiniteAutomaton` (NFA or DFA), not only ones built from regular expressions.
 
+## Language rules, exact strings and manual automata
+
+The Automata Builder has four input modes, shown as tabs: **Regular Expression**, **Language Rule**, **Exact String** and **Manual Automaton**. Each mode keeps its own inputs and result. A result is only shown while the inputs that produced it are unchanged.
+
+**Alphabets** are entered as comma-separated single characters, such as `a,b` or `0, 1`. Spaces around symbols are ignored. Symbols cannot be whitespace, `,`, `ε` or `λ`, and at most 20 are allowed.
+
+### Language rules
+
+Language rules are **structured choices**, not free-form English. "Binary strings that end with 01" is entered as alphabet `0,1`, rule *Ends with*, pattern `01`. Each rule is built by a general algorithm from its parameters, and the result is a complete DFA with states `q0, q1, …`:
+
+| Rule | Parameters | Construction |
+| --- | --- | --- |
+| Starts with | pattern | A chain of states counts how much of the prefix has matched. A wrong symbol goes to a dead state, and the final state loops on every symbol. |
+| Ends with | pattern | Pattern-matching states (below). Accepting only while the input currently ends with the pattern. |
+| Contains substring | pattern | The same states, but the full-match state is absorbing. |
+| Does not contain substring | pattern | Complement of *contains*: accepting and non-accepting states are swapped. |
+| Does not end with | pattern | Complement of *ends with*. |
+| Even / odd number of a symbol | symbol | Two parity states. The chosen symbol toggles parity; other symbols leave it unchanged. |
+| Exactly *k* occurrences | symbol, *k* (0–100) | States count occurrences 0…*k*, plus one overflow state for more than *k*. |
+
+**Pattern-matching states.** State *i* means "the last *i* symbols read are the first *i* symbols of the pattern". After reading *x*, the next state is the length of the longest prefix of the pattern that is a suffix of `pattern[:i] + x`. This is the idea behind the Knuth–Morris–Pratt automaton. It handles overlapping patterns correctly, so *contains* `aba` accepts `ababa`. Patterns may be up to 50 characters.
+
+**Complements** are only taken of complete DFAs. Every string ends in exactly one state of a complete DFA, so swapping acceptance gives exactly the complement language.
+
+The table in the app has a *Meaning* column explaining each state, such as "matched 'ab'". A state that can never be reached is left out; for example, *starts with* `aa` over `{a}` needs no dead state.
+
+### Exact strings
+
+*Exact String* builds a DFA accepting one string and nothing else: a chain of states, one per character, then a dead state for anything extra or different. The string is taken **literally**. With `|` in the alphabet, `a|b` is the three characters `a`, `|`, `b`, not a choice. Leaving the string empty builds the automaton that accepts only ε. Strings may be up to 100 characters.
+
+| Mode | Input | Accepts |
+| --- | --- | --- |
+| Exact string | `aabb` | only `aabb` |
+| Regular expression | `(a\|b)*aabb` | every string ending in `aabb` |
+
+### DFA or NFA output
+
+Language rules and exact strings can be shown as a **DFA** or an **NFA**. Every DFA is also an NFA, one whose transitions each have exactly one destination and no ε-moves, so the NFA output is the same machine labelled as an NFA. It is a separate copy, not the original object. It is not a Thompson ε-NFA; use the Regular Expression mode for that.
+
+### Manual DFA / NFA definitions
+
+| Field | Example | Notes |
+| --- | --- | --- |
+| Machine type | `DFA` or `NFA` | |
+| Alphabet | `0,1` | |
+| States | `q0,q1` | letters, digits, `_ . - '`; no spaces; at most 40 characters each, 150 states |
+| Initial state | `q0` | must be one of the states |
+| Accepting states | `q0` | may be empty (the automaton accepts nothing) |
+| Transitions | one `source,symbol,destination` per line | at most 2,000 lines |
+
+Example DFA (binary strings with an even number of `0`s):
+
+```text
+q0,0,q1
+q0,1,q0
+q1,0,q0
+q1,1,q1
+```
+
+Example ε-NFA (accepts exactly `a` or `b`; alphabet `a,b`, states `q0,q1,q2,q3`, initial `q0`, accepting `q3`):
+
+```text
+q0,ε,q1
+q0,ε,q2
+q1,a,q3
+q2,b,q3
+```
+
+**Rules:**
+
+- Use `ε` (or `λ`) as the symbol for an epsilon transition. It is stored internally as `None`, and the letter `e` is always an ordinary symbol.
+- Repeating a source and symbol with a different destination makes an NFA nondeterministic, so `q0,a,q1` and `q0,a,q2` together give δ(q0, a) = {q1, q2}.
+- Identical lines are merged. Blank lines and lines starting with `#` are ignored.
+- A **DFA** must be complete and deterministic. It cannot use ε, conflicting destinations are reported with both line numbers, and every missing (state, symbol) pair is listed. FiniteTrace never adds a dead state silently.
+- An **NFA** may have missing transitions, several destinations, ε-moves, ε-cycles and any number of accepting states.
+
+Errors name the field or transition line, for example:
+
+```text
+Transitions line 2: a DFA allows one destination per state and symbol, but (q0, 0) already goes to 'q1' on line 1.
+Incomplete DFA: missing transition for state 'q1' on symbol '1'.
+Transitions line 1: symbol '2' is not in the alphabet.
+```
+
+The **Example** selector in the format help fills the form with a sample DFA or NFA. You can replace it with any automaton.
+
+### Converting a manual NFA
+
+1. In **Manual Automaton**, choose NFA, enter the definition and press **Validate & Build**.
+2. In **NFA to DFA Converter**, open **From Manual NFA** and press **Convert NFA to DFA**.
+
+The same subset-construction engine is used, with any state names. If the manual inputs change after building, the converter asks you to build again instead of using the old automaton. A manual DFA is already deterministic, so it is not offered for conversion.
+
+### In code
+
+```python
+from core.language_builder import ENDS_WITH, as_nfa, build_exact_string_dfa, build_language_dfa
+from core.manual_builder import parse_and_build, build_manual_automaton
+from core.converter import convert_nfa_to_dfa
+
+dfa = build_language_dfa(ENDS_WITH, {"0", "1"}, pattern="01")
+nfa_view = as_nfa(dfa)
+exact = build_exact_string_dfa("aabb", {"a", "b"})
+nfa = build_manual_automaton("NFA", {"q0", "q1"}, {"a"}, "q0", {"q1"}, [("q0", "a", "q1"), ("q0", None, "q1")])
+dfa_from_manual = convert_nfa_to_dfa(nfa).dfa
+```
+
 ## Installation
 
 Requirements: Python 3.11 or newer, and Git.
@@ -295,14 +409,21 @@ finite-trace/
 │   ├── regex_parser.py    # Regular expression parser
 │   ├── thompson.py        # Thompson's ε-NFA construction
 │   ├── converter.py       # NFA-to-DFA subset construction
+│   ├── language_builder.py # Language rules and exact strings -> DFAs
+│   ├── manual_builder.py  # Manual DFA/NFA definitions
 │   └── simulator.py       # String simulation engine (planned)
 ├── ui/
-│   └── visualizer.py      # Graphviz diagrams and tables (planned)
+│   ├── automaton_view.py  # Shared automaton summary and transition tables
+│   ├── builder_modes.py   # Language rule, exact string and manual input forms
+│   └── visualizer.py      # Graphviz diagrams (planned)
 ├── tests/
 │   ├── test_automata.py   # Data model tests
 │   ├── test_regex_parser.py # Parser tests
 │   ├── test_thompson.py   # NFA construction and language tests
 │   ├── test_converter.py  # Subset construction and NFA/DFA equivalence tests
+│   ├── test_language_builder.py # Language-rule and exact-string tests
+│   ├── test_manual_builder.py   # Manual DFA/NFA tests
+│   ├── test_app_modes.py  # Streamlit tests for the input modes
 │   └── test_app.py        # Streamlit smoke tests
 ├── .streamlit/config.toml # Theme configuration
 ├── requirements.txt
@@ -318,7 +439,7 @@ finite-trace/
 | 02 | Regular expression parser | Complete |
 | 03 | Dynamic NFA construction | Complete |
 | 04 | NFA-to-DFA conversion | Complete |
-| 05 | Language rules & manual input | Planned |
+| 05 | Language rules & manual input | Complete |
 | 06 | DFA & NFA simulation engine | Planned |
 | 07 | State diagrams & transition tables | Planned |
 | 08 | Interactive interface & animation | Planned |
