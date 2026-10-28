@@ -5,13 +5,16 @@ Run with:  python -m streamlit run app.py
 
 The application shell provides branding, navigation, and clearly-labelled
 placeholders for features that later modules will build. In the Automata
-Builder, regular expressions can be parsed (core/regex_parser.py) and turned
-into ε-NFAs with Thompson's construction (core/thompson.py).
+Builder, regular expressions can be parsed (core/regex_parser.py), turned
+into ε-NFAs with Thompson's construction (core/thompson.py) and converted to
+DFAs with subset construction (core/converter.py), which the NFA to DFA
+Converter tab shows step by step.
 """
 
 import streamlit as st
 
-from core.automata import display_symbol, state_sort_key
+from core.automata import FiniteAutomaton, display_symbol, state_sort_key
+from core.converter import ConversionError, ConversionResult, convert_nfa_to_dfa, format_subset
 from core.regex_parser import (
     KIND_LABELS,
     MAX_EXPRESSION_LENGTH,
@@ -58,8 +61,8 @@ def render_header() -> None:
         unsafe_allow_html=True,
     )
     st.info(
-        "FiniteTrace is in early development. Regular expressions can be parsed and turned "
-        "into ε-NFAs today; DFA conversion, diagrams and simulation are not available yet.",
+        "FiniteTrace is in early development. Regular expressions can be parsed, turned into "
+        "ε-NFAs and converted to DFAs today; diagrams and simulation are not available yet.",
         icon="🛠️",
     )
 
@@ -72,6 +75,9 @@ def coming_soon(module: str) -> None:
 # session state as (action, expression, result-or-error) so it survives reruns.
 PARSE_ACTION = "parse"
 NFA_ACTION = "nfa"
+DFA_ACTION = "dfa"
+BUTTON_LABELS = {PARSE_ACTION: "Validate & Parse", NFA_ACTION: "Generate ε-NFA", DFA_ACTION: "Generate DFA"}
+PIPELINE_ERRORS = (RegexSyntaxError, ConstructionError, ConversionError)
 
 
 def parse_and_store() -> None:
@@ -89,9 +95,35 @@ def generate_nfa_and_store() -> None:
     expression = st.session_state.get("regex_input", "")
     try:
         result = construct_nfa(parse_regex(expression))
-    except (RegexSyntaxError, ConstructionError) as error:
+    except PIPELINE_ERRORS as error:
         result = error
     st.session_state["builder_outcome"] = (NFA_ACTION, expression, result)
+
+
+def run_conversion_pipeline(expression: str) -> tuple[ConstructionResult, ConversionResult]:
+    """Parse -> Thompson ε-NFA -> subset construction. Raises one of PIPELINE_ERRORS."""
+    construction = construct_nfa(parse_regex(expression))
+    return construction, convert_nfa_to_dfa(construction.automaton)
+
+
+def generate_dfa_and_store() -> None:
+    """Button callback: run the full pipeline on the Builder input."""
+    expression = st.session_state.get("regex_input", "")
+    try:
+        _, result = run_conversion_pipeline(expression)
+    except PIPELINE_ERRORS as error:
+        result = error
+    st.session_state["builder_outcome"] = (DFA_ACTION, expression, result)
+
+
+def convert_and_store() -> None:
+    """Button callback for the Converter tab, which keeps its own input and result."""
+    expression = st.session_state.get("converter_input", "")
+    try:
+        result = run_conversion_pipeline(expression)
+    except PIPELINE_ERRORS as error:
+        result = error
+    st.session_state["converter_outcome"] = (expression, result)
 
 
 def render_parse_success(parsed: ParsedRegex) -> None:
@@ -129,14 +161,29 @@ def render_parse_success(parsed: ParsedRegex) -> None:
     st.dataframe(rows, hide_index=True, width="stretch")
 
 
+def format_alphabet(automaton: FiniteAutomaton) -> str:
+    if not automaton.alphabet:
+        return "{} (empty: no input symbols)"
+    return "{" + ", ".join(sorted(automaton.alphabet)) + "}"
+
+
 def render_nfa_success(expression: str, result: ConstructionResult) -> None:
     nfa = result.automaton
+    st.success(
+        f"ε-NFA generated with {len(nfa.states)} states and {len(nfa.transition_list())} transitions.",
+        icon="✅",
+    )
+    render_nfa_overview(expression, nfa)
+    render_construction_steps(result)
+    st.caption("A state diagram for this NFA arrives in Module 07. Use Generate DFA to convert it.")
+
+
+def render_nfa_overview(expression: str, nfa: FiniteAutomaton) -> None:
+    """Summary metrics, key states and the full transition table of an NFA."""
     transitions = nfa.transition_list()
     epsilon_count = sum(1 for _, symbol, _ in transitions if symbol is None)
     accepting = ", ".join(sorted(nfa.accepting_states, key=state_sort_key))
-    alphabet = ", ".join(sorted(nfa.alphabet)) if nfa.alphabet else "∅ (no input symbols)"
-
-    st.success(f"ε-NFA generated with {len(nfa.states)} states and {len(transitions)} transitions.", icon="✅")
+    alphabet = format_alphabet(nfa)
 
     st.markdown("#### NFA summary")
     with st.container(border=True):
@@ -152,13 +199,13 @@ def render_nfa_success(expression: str, result: ConstructionResult) -> None:
             st.code(nfa.initial_state, language=None)
         with right:
             st.markdown("**Alphabet Σ**")
-            st.code("{" + alphabet + "}", language=None, wrap_lines=True)
+            st.code(alphabet, language=None, wrap_lines=True)
             st.markdown("**Accepting state**")
             st.code(accepting, language=None)
         st.markdown("**States**")
         st.code("{" + ", ".join(nfa.sorted_states()) + "}", language=None, wrap_lines=True)
 
-    st.markdown("#### Transitions")
+    st.markdown("#### NFA transitions")
     st.caption("One row per arrow. ε marks an epsilon transition, which moves without reading input.")
     rows = [
         {"Source": source, "Symbol": display_symbol(symbol), "Destination": destination}
@@ -166,6 +213,8 @@ def render_nfa_success(expression: str, result: ConstructionResult) -> None:
     ]
     st.dataframe(rows, hide_index=True, width="stretch")
 
+
+def render_construction_steps(result: ConstructionResult) -> None:
     st.markdown("#### Construction steps")
     st.caption(
         "Thompson's construction reads the postfix expression left to right. Each symbol "
@@ -183,7 +232,95 @@ def render_nfa_success(expression: str, result: ConstructionResult) -> None:
         for step in result.steps
     ]
     st.dataframe(step_rows, hide_index=True, width="stretch")
-    st.caption("A state diagram for this NFA arrives in Module 07; DFA conversion in Module 04.")
+
+
+def dfa_state_label(dfa: FiniteAutomaton, state: str) -> str:
+    """Prefix a DFA state with → if initial and ★ if accepting, as in textbook tables."""
+    prefix = ("→" if state == dfa.initial_state else "") + ("★" if state in dfa.accepting_states else "")
+    return f"{prefix} {state}".strip()
+
+
+def state_role(conversion: ConversionResult, state: str) -> str:
+    dfa = conversion.dfa
+    roles = []
+    if state == dfa.initial_state:
+        roles.append("Initial")
+    if state in dfa.accepting_states:
+        roles.append("Accepting")
+    if state == conversion.dead_state:
+        roles.append("Dead (empty subset)")
+    return ", ".join(roles) or "—"
+
+
+def render_dfa_summary(expression: str, conversion: ConversionResult) -> None:
+    dfa = conversion.dfa
+    st.markdown("#### DFA summary")
+    with st.container(border=True):
+        first, second, third, fourth = st.columns(4)
+        first.metric("DFA states", len(dfa.states))
+        second.metric("Transitions", len(dfa.transition_list()))
+        third.metric("Accepting", len(dfa.accepting_states))
+        fourth.metric("Dead state", conversion.dead_state or "None")
+        left, right = st.columns(2)
+        with left:
+            st.markdown("**Regular expression**")
+            st.code(expression, language=None, wrap_lines=True)
+            st.markdown("**Initial state**")
+            st.code(dfa.initial_state, language=None)
+        with right:
+            st.markdown("**Alphabet Σ**")
+            st.code(format_alphabet(dfa), language=None, wrap_lines=True)
+            st.markdown("**Accepting states**")
+            accepting = ", ".join(sorted(dfa.accepting_states, key=state_sort_key))
+            st.code(accepting or "none (the DFA accepts no strings)", language=None, wrap_lines=True)
+        st.caption(
+            f"{len(conversion.state_mapping)} reachable subsets of NFA states were discovered. "
+            "The DFA is equivalent to the NFA by construction but is not minimized."
+        )
+
+
+def render_state_mapping(conversion: ConversionResult) -> None:
+    st.markdown("#### DFA states as sets of NFA states")
+    rows = [
+        {"DFA state": dfa_state_label(conversion.dfa, name), "NFA states": format_subset(subset),
+         "Type": state_role(conversion, name)}
+        for name, subset in conversion.state_mapping.items()
+    ]
+    st.dataframe(rows, hide_index=True, width="stretch")
+
+
+def render_dfa_transition_table(conversion: ConversionResult) -> None:
+    dfa = conversion.dfa
+    st.markdown("#### DFA transition table")
+    if not dfa.alphabet:
+        st.info(
+            "The alphabet is empty, so the DFA has no transitions. It accepts the empty string "
+            "if and only if its initial state is accepting.",
+            icon="ℹ️",
+        )
+        return
+    st.caption("→ marks the initial state and ★ accepting states. Each cell is the single next state.")
+    symbols = sorted(dfa.alphabet)
+    rows = []
+    for state in dfa.sorted_states():
+        row = {"State": dfa_state_label(dfa, state)}
+        for symbol in symbols:
+            (row[symbol],) = dfa.transitions[(state, symbol)]
+        rows.append(row)
+    st.dataframe(rows, hide_index=True, width="stretch")
+
+
+def render_dfa_success(expression: str, conversion: ConversionResult) -> None:
+    dfa = conversion.dfa
+    st.success(
+        f"DFA generated with {len(dfa.states)} states. Structural validation passed: "
+        "every state has exactly one transition per symbol.",
+        icon="✅",
+    )
+    render_dfa_summary(expression, conversion)
+    render_state_mapping(conversion)
+    render_dfa_transition_table(conversion)
+    st.caption("See the NFA to DFA Converter tab for the step-by-step subset construction.")
 
 
 def render_builder_error(expression: str, error: ValueError, button: str) -> None:
@@ -202,15 +339,16 @@ def render_builder_outcome() -> None:
     action, expression, result = outcome
     # Only show results for the text currently in the input box, never stale ones.
     if expression != st.session_state.get("regex_input", ""):
-        st.caption("The expression has changed. Press Validate & Parse or Generate ε-NFA to update the result.")
+        st.caption("The expression has changed. Press a button above to update the result.")
         return
-    button = "Validate & Parse" if action == PARSE_ACTION else "Generate ε-NFA"
     if isinstance(result, ValueError):
-        render_builder_error(expression, result, button)
+        render_builder_error(expression, result, BUTTON_LABELS[action])
     elif action == PARSE_ACTION:
         render_parse_success(result)
-    else:
+    elif action == NFA_ACTION:
         render_nfa_success(expression, result)
+    else:
+        render_dfa_success(expression, result)
 
 
 def render_builder() -> None:
@@ -248,8 +386,12 @@ def render_builder() -> None:
                 on_click=generate_nfa_and_store,
                 help="Parse the expression and build an equivalent ε-NFA with Thompson's construction.",
             )
-            st.button("Generate DFA", disabled=True)
-            coming_soon("Module 04 (DFA conversion)")
+            st.button(
+                "Generate DFA",
+                key="generate_dfa_button",
+                on_click=generate_dfa_and_store,
+                help="Build the ε-NFA, then convert it to an equivalent DFA with subset construction.",
+            )
         with st.container(border=True):
             st.markdown("**State diagram**")
             st.write("A graphical state diagram will appear here.")
@@ -281,22 +423,100 @@ def render_simulator() -> None:
             st.caption("No simulation has been run.")
 
 
+def render_subset_construction(conversion: ConversionResult) -> None:
+    st.markdown("#### Initial ε-closure")
+    st.code(
+        f"D0 = ε-closure({{{conversion.nfa_initial_state}}}) = {format_subset(conversion.initial_closure)}",
+        language=None,
+        wrap_lines=True,
+    )
+    render_state_mapping(conversion)
+
+    st.markdown("#### Conversion steps")
+    st.caption(
+        "For each DFA state S and symbol x: move(S, x) follows x-transitions only, then "
+        "ε-closure adds every state reachable by ε. The result is the next DFA state; "
+        "a subset seen for the first time becomes a new state, and ∅ is the dead state."
+    )
+    if not conversion.steps:
+        st.info("The alphabet is empty, so there are no symbol transitions to compute. D0 is the only DFA state.", icon="ℹ️")
+        return
+    rows = []
+    for step in conversion.steps:
+        if not step.is_new_state:
+            outcome = "existing"
+        elif step.destination_dfa_state == conversion.dead_state:
+            outcome = "new (dead state)"
+        else:
+            outcome = "new"
+        rows.append({
+            "Step": step.number,
+            "From": step.source_dfa_state,
+            "Symbol": step.input_symbol,
+            "move(S, x)": format_subset(step.move_result),
+            "ε-closure": format_subset(step.epsilon_closure_result),
+            "To": step.destination_dfa_state,
+            "Result": outcome,
+        })
+    st.dataframe(rows, hide_index=True, width="stretch")
+    with st.expander("How subset construction works"):
+        st.markdown(
+            "1. **Start:** D0 is the ε-closure of the NFA's initial state.\n"
+            "2. **Explore:** take the next unprocessed DFA state S (breadth-first) and, for each "
+            "symbol x in sorted order, compute ε-closure(move(S, x)).\n"
+            "3. **Name:** if that subset is new, give it the next name (D1, D2, …) and queue it; "
+            "otherwise reuse its existing name.\n"
+            "4. **Accept:** a DFA state is accepting if its subset contains any accepting NFA state.\n"
+            "5. **Dead state:** the empty subset ∅ is non-accepting and loops to itself on every symbol."
+        )
+
+
+def render_conversion_outcome() -> None:
+    outcome = st.session_state.get("converter_outcome")
+    if outcome is None:
+        return
+    expression, result = outcome
+    if expression != st.session_state.get("converter_input", ""):
+        st.caption("The expression has changed. Press Convert NFA to DFA to update the result.")
+        return
+    if isinstance(result, ValueError):
+        render_builder_error(expression, result, "Convert NFA to DFA")
+        return
+
+    construction, conversion = result
+    st.success(
+        f"Converted a {len(construction.automaton.states)}-state ε-NFA into a "
+        f"{len(conversion.dfa.states)}-state DFA. Structural validation passed.",
+        icon="✅",
+    )
+    with st.container(border=True):
+        st.markdown("### A. Original ε-NFA")
+        render_nfa_overview(expression, construction.automaton)
+    with st.container(border=True):
+        st.markdown("### B. Subset construction")
+        render_subset_construction(conversion)
+    with st.container(border=True):
+        st.markdown("### C. Converted DFA")
+        render_dfa_summary(expression, conversion)
+        render_dfa_transition_table(conversion)
+
+
 def render_converter() -> None:
     st.subheader("NFA to DFA Converter")
-    st.write("Convert an NFA into an equivalent DFA using subset construction.")
-
-    steps = [
-        ("1. Source NFA", "The NFA being converted, including any ε-transitions."),
-        ("2. ε-closures", "The set of states reachable from each state using only ε-moves."),
-        ("3. Subset construction", "Each new DFA state as a set of NFA states, built symbol by symbol."),
-        ("4. Resulting DFA", "The converted DFA, its state mapping and transition table."),
-    ]
-    columns = st.columns(len(steps))
-    for column, (title, description) in zip(columns, steps):
-        with column.container(border=True):
-            st.markdown(f"**{title}**")
-            st.write(description)
-    coming_soon("Module 04")
+    st.write(
+        "Build an ε-NFA from a regular expression with Thompson's construction, then convert it "
+        "into an equivalent DFA with subset construction, step by step."
+    )
+    with st.container(border=True):
+        st.text_input(
+            "Regular Expression",
+            placeholder="(0|1)*01",
+            key="converter_input",
+            help=f"Same syntax as the Automata Builder. Maximum {MAX_EXPRESSION_LENGTH} characters.",
+        )
+        st.button("Convert NFA to DFA", key="convert_button", type="primary", on_click=convert_and_store)
+        coming_soon("Module 05 (manual NFA input)")
+    render_conversion_outcome()
 
 
 def render_sidebar() -> None:
@@ -316,7 +536,7 @@ def render_sidebar() -> None:
             "- **Simulate**: step through a test string and see whether it is accepted."
         )
         st.markdown("#### Status")
-        st.write("Module 03 of 10 complete: ε-NFA construction (Thompson's algorithm).")
+        st.write("Module 04 of 10 complete: NFA-to-DFA conversion (subset construction).")
 
 
 def main() -> None:

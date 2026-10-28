@@ -6,8 +6,11 @@ from streamlit.testing.v1 import AppTest
 
 APP_PATH = str(Path(__file__).resolve().parent.parent / "app.py")
 
-# Controls that are allowed to be enabled (regex parser and ε-NFA generation).
-PARSER_WIDGET_KEYS = {"regex_input", "parse_button", "generate_nfa_button"}
+# Controls that are allowed to be enabled (parser, ε-NFA generation, DFA conversion).
+PARSER_WIDGET_KEYS = {
+    "regex_input", "parse_button", "generate_nfa_button", "generate_dfa_button",
+    "converter_input", "convert_button",
+}
 
 
 def run_app() -> AppTest:
@@ -53,8 +56,10 @@ def test_unfinished_controls_are_disabled():
     assert all(button.disabled for button in other_buttons)
     assert all(text_input.disabled for text_input in other_inputs)
     labels = {button.label for button in app.button}
-    assert "Generate DFA" in labels
+    # String simulation and animation stay unavailable until Modules 06 and 08.
     assert {"▶ Play", "⏸ Pause", "⏭ Step", "↺ Reset"} <= labels
+    assert all(b.disabled for b in app.button if b.label in {"▶ Play", "⏸ Pause", "⏭ Step", "↺ Reset"})
+    assert app.text_input[[t.label for t in app.text_input].index("Test string")].disabled
 
 
 def test_parser_controls_are_enabled():
@@ -117,12 +122,13 @@ def generate_in_app(app: AppTest, expression: str) -> AppTest:
     return app
 
 
-def test_generate_nfa_button_is_enabled_and_dfa_is_not():
+def test_generate_buttons_are_enabled():
     app = run_app()
     assert not app.button(key="generate_nfa_button").disabled
     assert app.button(key="generate_nfa_button").label == "Generate ε-NFA"
-    dfa_buttons = [b for b in app.button if b.label == "Generate DFA"]
-    assert len(dfa_buttons) == 1 and dfa_buttons[0].disabled
+    # Module 04 enabled DFA generation (it was a disabled placeholder before).
+    assert not app.button(key="generate_dfa_button").disabled
+    assert app.button(key="generate_dfa_button").label == "Generate DFA"
 
 
 def test_generate_nfa_shows_summary_transitions_and_steps():
@@ -181,3 +187,125 @@ def test_parser_still_works_after_generating():
     assert [s.value for s in app.success] == ["Valid expression"]
     assert "abc|*." in [block.value for block in app.code]
     assert not app.metric
+
+
+# --- Module 04: DFA generation and the converter tab ---------------------
+
+def builder_dfa(app: AppTest, expression: str) -> AppTest:
+    app.text_input(key="regex_input").input(expression)
+    app.button(key="generate_dfa_button").click()
+    app.run()
+    return app
+
+
+def convert_in_app(app: AppTest, expression: str) -> AppTest:
+    app.text_input(key="converter_input").input(expression)
+    app.button(key="convert_button").click()
+    app.run()
+    return app
+
+
+def frame_with_column(app: AppTest, column: str):
+    matches = [frame.value for frame in app.dataframe if column in frame.value.columns]
+    assert matches, f"no table with column {column!r}"
+    return matches[0]
+
+
+def test_builder_generate_dfa_shows_summary_mapping_and_table():
+    app = builder_dfa(run_app(), "(a|b)*abb")
+    assert not app.exception
+    assert not app.error
+    assert "DFA generated with 5 states" in app.success[0].value
+    metrics = {metric.label: metric.value for metric in app.metric}
+    assert metrics["DFA states"] == "5"
+    assert metrics["Transitions"] == "10"
+    assert metrics["Dead state"] == "None"
+    mapping = frame_with_column(app, "NFA states")
+    assert list(mapping["DFA state"]) == ["→ D0", "D1", "D2", "D3", "★ D4"]
+    assert mapping["Type"].iloc[0] == "Initial"
+    table = frame_with_column(app, "State")
+    assert list(table.columns) == ["State", "a", "b"]
+    assert table.iloc[0].to_dict() == {"State": "→ D0", "a": "D1", "b": "D2"}
+
+
+def test_builder_dfa_shows_dead_state():
+    app = builder_dfa(run_app(), "ab")
+    metrics = {metric.label: metric.value for metric in app.metric}
+    assert metrics["Dead state"] == "D2"  # D0 --b--> ∅ is discovered before D1 is explored
+    mapping = frame_with_column(app, "NFA states")
+    dead = mapping[mapping["DFA state"] == "D2"].iloc[0]
+    assert dead["NFA states"] == "∅" and "Dead" in dead["Type"]
+
+
+def test_builder_dfa_with_empty_alphabet_explains_missing_table():
+    app = builder_dfa(run_app(), "ε")
+    assert not app.exception
+    assert any("alphabet is empty" in info.value for info in app.info)
+
+
+def test_converter_tab_shows_nfa_trace_and_dfa():
+    app = convert_in_app(run_app(), "(0|1)*01")
+    assert not app.exception
+    assert not app.error
+    assert "12-state ε-NFA into a 4-state DFA" in app.success[0].value
+    headings = [block.value for block in app.markdown]
+    for heading in ["### A. Original ε-NFA", "### B. Subset construction", "### C. Converted DFA"]:
+        assert heading in headings
+    nfa_rows = frame_with_column(app, "Source")
+    assert len(nfa_rows) == 14
+    trace = frame_with_column(app, "move(S, x)")
+    assert len(trace) == 8
+    assert list(trace["From"])[:2] == ["D0", "D0"]
+    assert set(trace["Result"]) <= {"new", "existing", "new (dead state)"}
+    assert any(c.value.startswith("D0 = ε-closure({q6}) = {") for c in app.code)
+    table = frame_with_column(app, "State")
+    assert list(table.columns) == ["State", "0", "1"]
+    assert len(table) == 4
+
+
+def test_converter_invalid_input_hides_previous_result():
+    app = convert_in_app(run_app(), "(0|1)*01")
+    app = convert_in_app(app, "a||b")
+    assert not app.exception
+    assert not app.success
+    assert len(app.dataframe) == 0
+    assert "position 3" in app.error[0].value
+
+
+def test_converter_new_expression_replaces_result():
+    app = convert_in_app(run_app(), "a|b")
+    assert "4-state DFA" in app.success[0].value
+    app = convert_in_app(app, "(ab)*")
+    assert len(app.success) == 1
+    assert "(ab)*" in [block.value for block in app.code]
+    assert "a|b" not in [block.value for block in app.code]
+
+
+def test_converter_edit_hides_stale_result():
+    app = convert_in_app(run_app(), "a|b")
+    app.text_input(key="converter_input").input("ab").run()
+    assert not app.success
+    assert len(app.dataframe) == 0
+
+
+def test_builder_and_converter_results_are_independent():
+    app = convert_in_app(run_app(), "(0|1)*01")
+    app = generate_in_app(app, "ab")
+    # Both results are shown: the Builder's ε-NFA and the Converter's DFA.
+    assert len(app.success) == 2
+    assert "ε-NFA generated" in app.success[0].value
+    assert "4-state DFA" in app.success[1].value
+    assert app.text_input(key="converter_input").value == "(0|1)*01"
+
+
+def test_dfa_state_limit_shows_error_not_partial_dfa():
+    # "10th symbol from the end is a" needs over 2**10 DFA states, above MAX_DFA_STATES.
+    expression = "(a|b)*a" + "(a|b)" * 9
+    app = convert_in_app(run_app(), expression)
+    assert not app.exception
+    assert not app.success
+    assert len(app.dataframe) == 0
+    assert "more than 512 states" in app.error[0].value
+    app = builder_dfa(app, expression)
+    assert not app.success
+    assert "more than 512 states" in app.error[0].value
