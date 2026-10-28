@@ -6,8 +6,8 @@ from streamlit.testing.v1 import AppTest
 
 APP_PATH = str(Path(__file__).resolve().parent.parent / "app.py")
 
-# Controls that are allowed to be enabled (the regular expression parser).
-PARSER_WIDGET_KEYS = {"regex_input", "parse_button"}
+# Controls that are allowed to be enabled (regex parser and ε-NFA generation).
+PARSER_WIDGET_KEYS = {"regex_input", "parse_button", "generate_nfa_button"}
 
 
 def run_app() -> AppTest:
@@ -53,7 +53,8 @@ def test_unfinished_controls_are_disabled():
     assert all(button.disabled for button in other_buttons)
     assert all(text_input.disabled for text_input in other_inputs)
     labels = {button.label for button in app.button}
-    assert "Generate automaton" in labels
+    assert "Generate DFA" in labels
+    assert {"▶ Play", "⏸ Pause", "⏭ Step", "↺ Reset"} <= labels
 
 
 def test_parser_controls_are_enabled():
@@ -105,3 +106,78 @@ def test_other_tabs_still_render_after_parsing():
     subheaders = [block.value for block in app.subheader]
     assert subheaders == ["Automata Builder", "String Simulator", "NFA to DFA Converter"]
     assert app.success  # the parse result coexists with the other sections
+
+
+# --- Module 03: ε-NFA generation -------------------------------------------
+
+def generate_in_app(app: AppTest, expression: str) -> AppTest:
+    app.text_input(key="regex_input").input(expression)
+    app.button(key="generate_nfa_button").click()
+    app.run()
+    return app
+
+
+def test_generate_nfa_button_is_enabled_and_dfa_is_not():
+    app = run_app()
+    assert not app.button(key="generate_nfa_button").disabled
+    assert app.button(key="generate_nfa_button").label == "Generate ε-NFA"
+    dfa_buttons = [b for b in app.button if b.label == "Generate DFA"]
+    assert len(dfa_buttons) == 1 and dfa_buttons[0].disabled
+
+
+def test_generate_nfa_shows_summary_transitions_and_steps():
+    app = generate_in_app(run_app(), "(a|b)*abb")
+    assert not app.exception
+    assert not app.error
+    assert "14 states and 16 transitions" in app.success[0].value
+    metrics = {metric.label: metric.value for metric in app.metric}
+    assert metrics == {"States": "14", "Transitions": "16", "ε-transitions": "11"}
+    code_blocks = [block.value for block in app.code]
+    assert "{a, b}" in code_blocks
+    assert "q6" in code_blocks    # initial state
+    assert "q13" in code_blocks   # accepting state
+    assert "{" + ", ".join(f"q{i}" for i in range(14)) + "}" in code_blocks
+
+    transitions, steps = app.dataframe[0].value, app.dataframe[1].value
+    assert len(transitions) == 16
+    assert {"Source": "q0", "Symbol": "a", "Destination": "q1"} in transitions.to_dict("records")
+    assert (transitions["Symbol"] == "ε").sum() == 11
+    assert list(steps["Token"]) == list("ab|*a.b.b.")
+    assert list(steps["Operation"])[:4] == ["Literal", "Literal", "Union", "Kleene star"]
+
+
+def test_generating_new_expression_replaces_previous_nfa():
+    app = generate_in_app(run_app(), "a|b")
+    assert "6 states" in app.success[0].value
+    app = generate_in_app(app, "(ab)*")
+    assert len(app.success) == 1
+    assert "6 states and 7 transitions" in app.success[0].value
+    assert "(ab)*" in [block.value for block in app.code]
+    assert "a|b" not in [block.value for block in app.code]
+    assert len(app.dataframe[0].value) == 7
+
+
+def test_generate_with_invalid_expression_shows_error_only():
+    app = generate_in_app(run_app(), "(a|b)*abb")
+    app = generate_in_app(app, "a||b")
+    assert not app.exception
+    assert not app.success
+    assert not app.metric
+    assert len(app.dataframe) == 0
+    assert "position 3" in app.error[0].value
+    assert "Generate ε-NFA" in " ".join(c.value for c in app.caption)
+
+
+def test_editing_input_hides_generated_nfa():
+    app = generate_in_app(run_app(), "ab")
+    app.text_input(key="regex_input").input("abc").run()
+    assert not app.success
+    assert not app.metric
+
+
+def test_parser_still_works_after_generating():
+    app = generate_in_app(run_app(), "ab")
+    app = parse_in_app(app, "a(b|c)*")
+    assert [s.value for s in app.success] == ["Valid expression"]
+    assert "abc|*." in [block.value for block in app.code]
+    assert not app.metric

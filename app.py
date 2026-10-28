@@ -4,12 +4,14 @@ FiniteTrace - Streamlit entry point.
 Run with:  python -m streamlit run app.py
 
 The application shell provides branding, navigation, and clearly-labelled
-placeholders for features that later modules will build. The regular
-expression parser (core/regex_parser.py) is interactive in the Automata Builder.
+placeholders for features that later modules will build. In the Automata
+Builder, regular expressions can be parsed (core/regex_parser.py) and turned
+into ε-NFAs with Thompson's construction (core/thompson.py).
 """
 
 import streamlit as st
 
+from core.automata import display_symbol, state_sort_key
 from core.regex_parser import (
     KIND_LABELS,
     MAX_EXPRESSION_LENGTH,
@@ -18,6 +20,7 @@ from core.regex_parser import (
     describe_token,
     parse_regex,
 )
+from core.thompson import ConstructionError, ConstructionResult, construct_nfa
 
 APP_NAME = "FiniteTrace"
 TAGLINE = "Visualize. Convert. Simulate."
@@ -55,8 +58,8 @@ def render_header() -> None:
         unsafe_allow_html=True,
     )
     st.info(
-        "FiniteTrace is in early development. Regular expressions can be validated and "
-        "parsed today; automata generation, conversion and simulation are not available yet.",
+        "FiniteTrace is in early development. Regular expressions can be parsed and turned "
+        "into ε-NFAs today; DFA conversion, diagrams and simulation are not available yet.",
         icon="🛠️",
     )
 
@@ -65,13 +68,30 @@ def coming_soon(module: str) -> None:
     st.caption(f"⏳ Coming in {module}")
 
 
+# The builder shows the result of the most recent action only. It is stored in
+# session state as (action, expression, result-or-error) so it survives reruns.
+PARSE_ACTION = "parse"
+NFA_ACTION = "nfa"
+
+
 def parse_and_store() -> None:
     """Button callback: parse the current input and remember the outcome (success or error)."""
     expression = st.session_state.get("regex_input", "")
     try:
-        st.session_state["parse_outcome"] = (expression, parse_regex(expression))
+        result = parse_regex(expression)
     except RegexSyntaxError as error:
-        st.session_state["parse_outcome"] = (expression, error)
+        result = error
+    st.session_state["builder_outcome"] = (PARSE_ACTION, expression, result)
+
+
+def generate_nfa_and_store() -> None:
+    """Button callback: parse and run Thompson's construction on the current input."""
+    expression = st.session_state.get("regex_input", "")
+    try:
+        result = construct_nfa(parse_regex(expression))
+    except (RegexSyntaxError, ConstructionError) as error:
+        result = error
+    st.session_state["builder_outcome"] = (NFA_ACTION, expression, result)
 
 
 def render_parse_success(parsed: ParsedRegex) -> None:
@@ -109,27 +129,88 @@ def render_parse_success(parsed: ParsedRegex) -> None:
     st.dataframe(rows, hide_index=True, width="stretch")
 
 
-def render_parse_error(expression: str, error: RegexSyntaxError) -> None:
+def render_nfa_success(expression: str, result: ConstructionResult) -> None:
+    nfa = result.automaton
+    transitions = nfa.transition_list()
+    epsilon_count = sum(1 for _, symbol, _ in transitions if symbol is None)
+    accepting = ", ".join(sorted(nfa.accepting_states, key=state_sort_key))
+    alphabet = ", ".join(sorted(nfa.alphabet)) if nfa.alphabet else "∅ (no input symbols)"
+
+    st.success(f"ε-NFA generated with {len(nfa.states)} states and {len(transitions)} transitions.", icon="✅")
+
+    st.markdown("#### NFA summary")
+    with st.container(border=True):
+        first, second, third = st.columns(3)
+        first.metric("States", len(nfa.states))
+        second.metric("Transitions", len(transitions))
+        third.metric("ε-transitions", epsilon_count)
+        left, right = st.columns(2)
+        with left:
+            st.markdown("**Regular expression**")
+            st.code(expression, language=None, wrap_lines=True)
+            st.markdown("**Initial state**")
+            st.code(nfa.initial_state, language=None)
+        with right:
+            st.markdown("**Alphabet Σ**")
+            st.code("{" + alphabet + "}", language=None, wrap_lines=True)
+            st.markdown("**Accepting state**")
+            st.code(accepting, language=None)
+        st.markdown("**States**")
+        st.code("{" + ", ".join(nfa.sorted_states()) + "}", language=None, wrap_lines=True)
+
+    st.markdown("#### Transitions")
+    st.caption("One row per arrow. ε marks an epsilon transition, which moves without reading input.")
+    rows = [
+        {"Source": source, "Symbol": display_symbol(symbol), "Destination": destination}
+        for source, symbol, destination in transitions
+    ]
+    st.dataframe(rows, hide_index=True, width="stretch")
+
+    st.markdown("#### Construction steps")
+    st.caption(
+        "Thompson's construction reads the postfix expression left to right. Each symbol "
+        "pushes a small fragment; each operator pops its operands and pushes a combined fragment."
+    )
+    step_rows = [
+        {
+            "Step": step.number,
+            "Token": step.token,
+            "Operation": step.operation,
+            "Fragment": f"{step.fragment.start} → {step.fragment.end}",
+            "Stack": step.stack_depth,
+            "Explanation": step.explanation,
+        }
+        for step in result.steps
+    ]
+    st.dataframe(step_rows, hide_index=True, width="stretch")
+    st.caption("A state diagram for this NFA arrives in Module 07; DFA conversion in Module 04.")
+
+
+def render_builder_error(expression: str, error: ValueError, button: str) -> None:
     st.error(str(error), icon="⚠️")
-    if error.position is not None:
+    position = getattr(error, "position", None)
+    if position is not None:
         # Point at the offending character underneath the expression.
-        st.code(expression + "\n" + " " * (error.position - 1) + "^", language=None)
-    st.caption("Fix the expression above and press Validate & Parse again.")
+        st.code(expression + "\n" + " " * (position - 1) + "^", language=None)
+    st.caption(f"Fix the expression above and press {button} again.")
 
 
-def render_parse_outcome() -> None:
-    outcome = st.session_state.get("parse_outcome")
+def render_builder_outcome() -> None:
+    outcome = st.session_state.get("builder_outcome")
     if outcome is None:
         return
-    expression, result = outcome
+    action, expression, result = outcome
     # Only show results for the text currently in the input box, never stale ones.
     if expression != st.session_state.get("regex_input", ""):
-        st.caption("The expression has changed. Press Validate & Parse to check it.")
+        st.caption("The expression has changed. Press Validate & Parse or Generate ε-NFA to update the result.")
         return
-    if isinstance(result, RegexSyntaxError):
-        render_parse_error(expression, result)
-    else:
+    button = "Validate & Parse" if action == PARSE_ACTION else "Generate ε-NFA"
+    if isinstance(result, ValueError):
+        render_builder_error(expression, result, button)
+    elif action == PARSE_ACTION:
         render_parse_success(result)
+    else:
+        render_nfa_success(expression, result)
 
 
 def render_builder() -> None:
@@ -156,19 +237,25 @@ def render_builder() -> None:
                 "( ) grouping, ε or λ for the empty string, \\ to escape an operator. "
                 f"Maximum {MAX_EXPRESSION_LENGTH} characters.",
             )
-            st.button("Validate & Parse", key="parse_button", type="primary", on_click=parse_and_store)
+            st.button("Validate & Parse", key="parse_button", on_click=parse_and_store)
     with right:
         with st.container(border=True):
             st.markdown("**Generate automaton**")
-            st.segmented_control("Target machine", ["ε-NFA", "DFA"], disabled=True)
-            st.button("Generate automaton", disabled=True)
-            coming_soon("Module 03 (NFA construction) and Module 04 (DFA conversion)")
+            st.button(
+                "Generate ε-NFA",
+                key="generate_nfa_button",
+                type="primary",
+                on_click=generate_nfa_and_store,
+                help="Parse the expression and build an equivalent ε-NFA with Thompson's construction.",
+            )
+            st.button("Generate DFA", disabled=True)
+            coming_soon("Module 04 (DFA conversion)")
         with st.container(border=True):
             st.markdown("**State diagram**")
-            st.write("A generated diagram and its transition table will appear here.")
+            st.write("A graphical state diagram will appear here.")
             coming_soon("Module 07")
 
-    render_parse_outcome()
+    render_builder_outcome()
 
 
 def render_simulator() -> None:
@@ -229,7 +316,7 @@ def render_sidebar() -> None:
             "- **Simulate**: step through a test string and see whether it is accepted."
         )
         st.markdown("#### Status")
-        st.write("Module 02 of 10 complete: regular expression parser.")
+        st.write("Module 03 of 10 complete: ε-NFA construction (Thompson's algorithm).")
 
 
 def main() -> None:

@@ -18,6 +18,7 @@ have zero, one, or several. Epsilon (empty-string) transitions use the Python
 value ``None`` as their symbol; the character "ε" is only used for display.
 """
 
+import re
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -43,6 +44,22 @@ def display_symbol(symbol: Optional[str]) -> str:
     if symbol is EPSILON:
         return EPSILON_DISPLAY
     return symbol
+
+
+def state_sort_key(state: str) -> tuple:
+    """Sort key that orders state names numerically, so q2 comes before q10."""
+    key = []
+    for part in re.split(r"(\d+)", state):
+        if part.isdigit():
+            key.append((0, int(part), ""))
+        elif part:
+            key.append((1, 0, part))
+    return tuple(key)
+
+
+def symbol_sort_key(symbol: Optional[str]) -> tuple:
+    """Sort key placing ordinary symbols alphabetically and ε last."""
+    return (symbol is EPSILON, symbol or "")
 
 
 @dataclass
@@ -74,6 +91,22 @@ class FiniteAutomaton:
         if key not in self.transitions:
             self.transitions[key] = set()
         self.transitions[key].add(destination)
+
+    def sorted_states(self) -> list[str]:
+        """States in a stable, human-friendly order (q0, q1, ..., q10)."""
+        return sorted(self.states, key=state_sort_key)
+
+    def transition_list(self) -> list[tuple[str, Optional[str], str]]:
+        """Every transition as a (source, symbol, destination) triple, in a stable order."""
+        triples = [
+            (source, symbol, destination)
+            for (source, symbol), destinations in self.transitions.items()
+            for destination in destinations
+        ]
+        return sorted(
+            triples,
+            key=lambda t: (state_sort_key(t[0]), symbol_sort_key(t[1]), state_sort_key(t[2])),
+        )
 
     def validate(self, require_complete: bool = True) -> None:
         """
