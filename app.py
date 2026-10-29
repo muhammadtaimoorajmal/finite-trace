@@ -26,12 +26,14 @@ from core.regex_parser import (
 from core.thompson import ConstructionError, ConstructionResult, construct_nfa
 from ui.automaton_view import format_alphabet, render_automaton, state_label
 from ui.builder_modes import (
+    available_builder_automata,
     current_manual_automaton,
     manual_signature,
     render_exact_mode,
     render_language_mode,
     render_manual_mode,
 )
+from ui.simulator_view import render_simulator_tab
 
 APP_NAME = "FiniteTrace"
 TAGLINE = "Visualize. Convert. Simulate."
@@ -63,15 +65,15 @@ def render_header() -> None:
         <div class="ft-header">
             <p class="ft-title">{APP_NAME}</p>
             <p class="ft-subtitle">{SUBTITLE}</p>
-            <p class="ft-tagline">{TAGLINE.upper()}<span class="ft-badge">Foundation build</span></p>
+            <p class="ft-tagline">{TAGLINE.upper()}<span class="ft-badge">In development · 6 of 10 modules</span></p>
         </div>
         """,
         unsafe_allow_html=True,
     )
     st.info(
-        "FiniteTrace is in early development. You can build automata from regular expressions, "
-        "language rules, exact strings or manual definitions and convert NFAs to DFAs; "
-        "diagrams and string simulation are not available yet.",
+        "Build automata from regular expressions, language rules, exact strings or manual "
+        "definitions, convert NFAs to DFAs, and simulate test strings with a full trace. "
+        "Graphical state diagrams and animation are not available yet.",
         icon="🛠️",
     )
 
@@ -402,27 +404,38 @@ def render_regex_mode() -> None:
     render_builder_outcome()
 
 
+def regex_builder_automata() -> list[tuple[str, FiniteAutomaton]]:
+    """The Builder's regex ε-NFA or DFA, if it still matches the expression in the input box."""
+    outcome = st.session_state.get("builder_outcome")
+    if outcome is None:
+        return []
+    action, expression, result = outcome
+    if expression != st.session_state.get("regex_input", "") or isinstance(result, ValueError):
+        return []
+    if action == NFA_ACTION:
+        return [(f"Regular Expression → ε-NFA: {expression}", result.automaton)]
+    if action == DFA_ACTION:
+        return [(f"Regular Expression → DFA: {expression}", result.dfa)]
+    return []
+
+
+def converted_dfas() -> list[tuple[str, FiniteAutomaton]]:
+    """DFAs from the NFA to DFA Converter whose inputs are unchanged."""
+    found = []
+    outcome = st.session_state.get("converter_outcome")
+    if outcome and outcome[0] == st.session_state.get("converter_input", "") and not isinstance(outcome[1], ValueError):
+        found.append((f"Converted from regular expression {outcome[0]}", outcome[1][1].dfa))
+    status, nfa = current_manual_automaton()
+    outcome = st.session_state.get("converter_manual_outcome")
+    if (status == "ok" and outcome and outcome[0] == manual_signature()
+            and not isinstance(outcome[1], ValueError)):
+        found.append(("Converted from manual NFA", outcome[1][1].dfa))
+    return found
+
+
 def render_simulator() -> None:
     st.subheader("String Simulator")
-    st.write("Run a test string through a DFA or NFA and follow the active states step by step.")
-
-    left, right = st.columns([2, 3], gap="large")
-    with left:
-        with st.container(border=True):
-            st.markdown("**Test input**")
-            st.text_input("Test string", placeholder="e.g. aabb", disabled=True)
-            controls = st.columns(4)
-            for column, label in zip(controls, ["▶ Play", "⏸ Pause", "⏭ Step", "↺ Reset"]):
-                column.button(label, disabled=True, width="stretch")
-            coming_soon("Module 06 (engine) and Module 08 (animation)")
-    with right:
-        with st.container(border=True):
-            st.markdown("**Trace**")
-            st.write(
-                "Active states, the transitions taken for each symbol, and the final "
-                "accepted/rejected verdict will be shown here."
-            )
-            st.caption("No simulation has been run.")
+    render_simulator_tab(regex_builder_automata() + available_builder_automata(), converted_dfas())
 
 
 def render_subset_construction(conversion: ConversionResult) -> None:
@@ -591,7 +604,7 @@ def render_sidebar() -> None:
             "FiniteTrace is an open-source tool for building, visualizing, converting "
             "and simulating finite automata (DFA and NFA)."
         )
-        st.markdown("#### How it will work")
+        st.markdown("#### How it works")
         st.markdown(
             "- **Build**: enter a regular expression, a language rule, an exact string, "
             "or a manual transition table.\n"
@@ -599,7 +612,8 @@ def render_sidebar() -> None:
             "- **Simulate**: step through a test string and see whether it is accepted."
         )
         st.markdown("#### Status")
-        st.write("Module 05 of 10 complete: language rules, exact strings and manual DFA/NFA input.")
+        st.write("Module 06 of 10 complete: DFA and NFA string simulation. "
+                 "State diagrams and animation are planned.")
 
 
 def main() -> None:

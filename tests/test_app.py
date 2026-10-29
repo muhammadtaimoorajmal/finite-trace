@@ -14,12 +14,14 @@ PARSER_WIDGET_KEYS = {
     "lang_alphabet", "lang_pattern", "lang_symbol", "lang_generate",
     "exact_alphabet", "exact_text", "exact_generate",
     "manual_alphabet", "manual_states", "manual_initial", "manual_accepting", "manual_build", "manual_load",
+    # Module 06 string simulator (the saved-automaton buttons stay disabled until something is built)
+    "sim_regex", "sim_regex_text", "sim_regex_button", "sim_builder_text", "sim_converted_text",
 }
 MAIN_TABS = ["Automata Builder", "String Simulator", "NFA to DFA Converter"]
 # All tabs in page order: the main tabs with the Builder's input modes and the Converter's sources nested.
 ALL_TABS = [
     "Automata Builder", "Regular Expression", "Language Rule", "Exact String", "Manual Automaton",
-    "String Simulator",
+    "String Simulator", "Regular Expression", "Builder Automaton", "Converted DFA",
     "NFA to DFA Converter", "From Regular Expression", "From Manual NFA",
 ]
 
@@ -67,10 +69,9 @@ def test_unfinished_controls_are_disabled():
     assert all(button.disabled for button in other_buttons)
     assert all(text_input.disabled for text_input in other_inputs)
     labels = {button.label for button in app.button}
-    # String simulation and animation stay unavailable until Modules 06 and 08.
+    # Animation stays unavailable until Module 08 (string simulation itself works since Module 06).
     assert {"▶ Play", "⏸ Pause", "⏭ Step", "↺ Reset"} <= labels
     assert all(b.disabled for b in app.button if b.label in {"▶ Play", "⏸ Pause", "⏭ Step", "↺ Reset"})
-    assert app.text_input[[t.label for t in app.text_input].index("Test string")].disabled
 
 
 def test_parser_controls_are_enabled():

@@ -229,6 +229,26 @@ def current_manual_automaton() -> tuple[str, Optional[FiniteAutomaton]]:
     return "ok", result
 
 
+def available_builder_automata() -> list[tuple[str, FiniteAutomaton]]:
+    """
+    (label, automaton) for each language-rule, exact-string and manual result that
+    still matches its current inputs. Stale or failed results are never offered.
+    """
+    found = []
+    outcome = st.session_state.get("lang_outcome")
+    if outcome and outcome[0] == _language_signature() and not isinstance(outcome[1], ValueError):
+        result, automaton = outcome[1]
+        found.append((f"Language Rule → {automaton.machine_type}: {result.description}", automaton))
+    outcome = st.session_state.get("exact_outcome")
+    if outcome and outcome[0] == _exact_signature() and not isinstance(outcome[1], ValueError):
+        result, automaton = outcome[1]
+        found.append((f"Exact String → {automaton.machine_type}: {result.description}", automaton))
+    status, automaton = current_manual_automaton()
+    if status == "ok":
+        found.append((f"Manual Automaton → {automaton.machine_type} with {len(automaton.states)} states", automaton))
+    return found
+
+
 def render_manual_mode() -> None:
     st.write("Define your own DFA or NFA by listing its states and transitions.")
     with st.expander("Input format and examples"):

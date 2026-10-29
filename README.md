@@ -4,7 +4,7 @@
 
 FiniteTrace is an open-source, interactive tool for building, visualizing, converting and simulating finite automata: Deterministic Finite Automata (DFA) and Nondeterministic Finite Automata (NFA), including ε-NFAs. It is written in plain Python with a Streamlit interface. All automata algorithms are implemented from scratch so the code doubles as a readable reference.
 
-> **Status:** early development. Modules 01–05 of 10 are complete. Automata can be built from regular expressions, structured language rules, exact strings or manual DFA/NFA definitions, and NFAs can be converted to DFAs. State diagrams and string simulation are not available yet.
+> **Status:** in development. Modules 01–06 of 10 are complete. Automata can be built from regular expressions, structured language rules, exact strings or manual DFA/NFA definitions; NFAs can be converted to DFAs; and test strings can be simulated on any of them with a full trace. Graphical state diagrams and animation are not available yet.
 
 ## Objectives
 
@@ -65,7 +65,12 @@ FiniteTrace is an open-source, interactive tool for building, visualizing, conve
 - Manual DFA and NFA/ε-NFA definitions with validation (`core/manual_builder.py`).
 - Conversion of a manually defined NFA in the NFA to DFA Converter.
 
-**Not implemented yet:** string simulation, graphical state diagrams and animation.
+### Implemented (Module 06)
+
+- Production string simulator (`core/simulator.py`) for DFAs, NFAs and ε-NFAs, with step-by-step traces and accept/reject explanations.
+- A working **String Simulator** tab that can simulate a regular expression directly (as an ε-NFA or DFA), any current Automata Builder result, or any converted DFA.
+
+**Not implemented yet:** graphical state diagrams and animation.
 
 ## Regular expression syntax
 
@@ -347,6 +352,83 @@ nfa = build_manual_automaton("NFA", {"q0", "q1"}, {"a"}, "q0", {"q1"}, [("q0", "
 dfa_from_manual = convert_nfa_to_dfa(nfa).dfa
 ```
 
+## String simulation
+
+`simulate(automaton, text)` runs a test string on any `FiniteAutomaton`, whatever produced it: a regular expression, language rule, exact string, manual definition or conversion.
+
+**How it works.** The simulator keeps a **set of active states**:
+
+1. **Step 0:** `active = ε-closure({initial state})`. No input is consumed.
+2. For each character `x`, left to right: `active = ε-closure(move(active, x))`.
+3. After the whole input: **accepted** if `active` contains at least one accepting state, otherwise **rejected**.
+
+- **DFA:** the DFA must be complete, so the active set always holds exactly one state, its current state, and each step follows its single transition.
+- **NFA:** the set holds every state some path could be in, so all paths are followed at once without listing them. If no active state has a move for a character, the set becomes empty and the string is rejected. Later characters are still recorded with no active states, so the trace always covers the whole input.
+- **ε-transitions** never consume input. They are followed during ε-closure, which reuses the converter's `epsilon_closure` and is safe on ε-cycles.
+- **Empty string:** leave the test string empty. It is accepted exactly when the starting active set contains an accepting state. For example, `a*` accepts it, `a+` rejects it, and `ε` accepts it.
+
+**Input checking.** Test strings are read literally: no trimming, case-sensitive, with punctuation and digits as ordinary symbols. Every character must be in the automaton's alphabet. Otherwise the simulator reports an *invalid test string* rather than a rejection, for example:
+
+```text
+Invalid test string: symbol 'c' at position 3 is not in the alphabet {a, b}.
+```
+
+Positions count from 1. A typed `ε` is an ordinary character, not the empty string. Test strings may be up to 1,000 characters; the automaton itself is validated first, and an incomplete DFA is reported, never repaired.
+
+**Trace.** `SimulationResult.steps` holds one `SimulationStep` per configuration:
+
+| Field | Meaning |
+| --- | --- |
+| `index`, `position`, `symbol` | step number, 1-based input position and character read (`None` for step 0) |
+| `active_before` | active states before reading the character |
+| `symbol_edges` | transitions followed on that character, as `(source, symbol, destination)` |
+| `moved_to` | `move(active_before, symbol)` |
+| `epsilon_edges` | ε-transitions inside the closure, as `(source, None, destination)` |
+| `active_after` | the active states after ε-closure |
+| `explanation` | a one-line summary |
+
+These records contain everything a later animation needs: active states, the transitions taken and the input position.
+
+### Example
+
+`(a|b)*abb` converted to a DFA, on `aabb`:
+
+| Step | Read | From | To |
+| --- | --- | --- | --- |
+| 0 | Start | — | D0 |
+| 1 | a | D0 | D1 |
+| 2 | a | D1 | D1 |
+| 3 | b | D1 | D3 |
+| 4 | b | D3 | D4 |
+
+**Accepted:** the entire input was consumed and the final state D4 is accepting. On `abab` the same DFA visits D0, D1, D3, D1, D3 and ends in D3, which is not accepting, so the string is **rejected**.
+
+### Using the String Simulator
+
+The tab has three sources, each with its own test string and **Simulate String** button:
+
+- **Regular Expression:** type an expression, choose **NFA** (Thompson's ε-NFA) or **DFA** (converted by subset construction), and simulate. No need to visit the Builder first.
+- **Builder Automaton:** any current Automata Builder result, such as a regex ε-NFA or DFA, a language rule, an exact string or a manual DFA/NFA.
+- **Converted DFA:** any current result from the NFA to DFA Converter.
+
+The result shows **Accepted** or **Rejected** with an explanation, a summary, and a step-by-step trace table. DFAs show *From → To*; NFAs show active sets, `move`, the ε-transitions used, and the ε-closure.
+
+Results are tied to the inputs that produced them. Editing the test string, the machine type, the selected automaton or the automaton's definition hides the old verdict. A Builder or Converter result whose inputs were edited afterwards is no longer offered.
+
+### In code
+
+```python
+from core.thompson import regex_to_nfa
+from core.simulator import accepts, simulate
+
+automaton = regex_to_nfa("(a|b)*abb")
+result = simulate(automaton, "aabb")
+
+print(result.accepted)       # True
+print(result.explanation)    # Accepted: ... contains accepting state q13.
+print(accepts(automaton, "abab"))  # False (same engine)
+```
+
 ## Installation
 
 Requirements: Python 3.11 or newer, and Git.
@@ -411,10 +493,11 @@ finite-trace/
 │   ├── converter.py       # NFA-to-DFA subset construction
 │   ├── language_builder.py # Language rules and exact strings -> DFAs
 │   ├── manual_builder.py  # Manual DFA/NFA definitions
-│   └── simulator.py       # String simulation engine (planned)
+│   └── simulator.py       # DFA/NFA string simulation with traces
 ├── ui/
 │   ├── automaton_view.py  # Shared automaton summary and transition tables
 │   ├── builder_modes.py   # Language rule, exact string and manual input forms
+│   ├── simulator_view.py  # String Simulator tab
 │   └── visualizer.py      # Graphviz diagrams (planned)
 ├── tests/
 │   ├── test_automata.py   # Data model tests
@@ -424,6 +507,8 @@ finite-trace/
 │   ├── test_language_builder.py # Language-rule and exact-string tests
 │   ├── test_manual_builder.py   # Manual DFA/NFA tests
 │   ├── test_app_modes.py  # Streamlit tests for the input modes
+│   ├── test_simulator.py  # Simulator, trace and equivalence tests
+│   ├── test_simulator_app.py # Streamlit tests for the String Simulator
 │   └── test_app.py        # Streamlit smoke tests
 ├── .streamlit/config.toml # Theme configuration
 ├── requirements.txt
@@ -440,7 +525,7 @@ finite-trace/
 | 03 | Dynamic NFA construction | Complete |
 | 04 | NFA-to-DFA conversion | Complete |
 | 05 | Language rules & manual input | Complete |
-| 06 | DFA & NFA simulation engine | Planned |
+| 06 | DFA & NFA simulation engine | Complete |
 | 07 | State diagrams & transition tables | Planned |
 | 08 | Interactive interface & animation | Planned |
 | 09 | Integration, robustness & testing | Planned |
