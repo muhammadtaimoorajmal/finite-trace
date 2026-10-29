@@ -179,8 +179,22 @@ def test_m_existing_features_still_work():
     assert any("4-state DFA" in s.value for s in app.success)
 
 
-def test_n_animation_controls_stay_disabled():
+def test_n_playback_controls_are_live_after_simulating():
+    # Module 08 replaced the disabled animation placeholders with working controls.
     app = simulate_regex(run_app(), "a*", "NFA", "aa")
-    for label in ["▶ Play", "⏸ Pause", "⏭ Step", "↺ Reset"]:
-        buttons = [b for b in app.button if b.label == label]
-        assert buttons and all(b.disabled for b in buttons)
+    controls = {b.label: b for b in app.button if b.key and b.key.startswith("sim_regex_outcome_playback_")}
+    assert set(controls) == {"↺ Reset", "⏮ Previous", "▶ Play", "⏸ Pause", "⏭ Next", "⟳ Replay"}
+    assert not controls["▶ Play"].disabled and not controls["⏭ Next"].disabled
+    assert controls["⏮ Previous"].disabled and controls["⏸ Pause"].disabled
+
+
+def test_saved_source_selects_automaton_that_appears_later():
+    # Regression: the dropdown is first drawn with no options (value None). When an automaton
+    # becomes available later it must be selected automatically, so Simulate String works
+    # without the user having to open the dropdown first.
+    app = set_manual(run_app(), EPSILON_NFA)
+    assert app.selectbox(key="sim_builder_choice").value is not None
+    app.text_input(key="sim_builder_text").input("a")
+    app.button(key="sim_builder_button").click()
+    app.run()
+    assert verdicts(app)[0]

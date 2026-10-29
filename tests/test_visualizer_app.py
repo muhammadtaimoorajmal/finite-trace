@@ -1,6 +1,7 @@
 """AppTest workflows for state diagrams in the Builder, Converter and Simulator (Module 07)."""
 
 from core.converter import regex_to_dfa
+from core.simulator import simulate
 from core.thompson import regex_to_nfa
 from test_app import builder_dfa, convert_in_app, frame_with_column, generate_in_app, parse_in_app, run_app
 from test_app_modes import EPSILON_NFA, EVEN_ZEROS, generate_rule, set_manual
@@ -96,13 +97,14 @@ def test_8_manual_conversion_diagrams():
     assert sorted(attrs["label"] for n, attrs in dfa_nodes.items() if n != "start") == ["D0", "D1", "D2"]
 
 
-def test_9_simulation_shows_static_diagram():
+def test_9_simulation_diagram_shows_step_0_highlighting():
+    # Since Module 08 the simulator diagram is animated; it opens on step 0 of the real trace.
     app = simulate_regex(run_app(), "(a|b)*abb", "DFA", "aabb")
     assert verdicts(app)[0]
-    assert charts(app) == [automaton_to_dot(regex_to_dfa("(a|b)*abb"))]
-    assert any("Static diagram" in c.value for c in app.caption)
-    # No state is highlighted: the static diagram has no highlight styling.
-    assert "fbbf24" not in charts(app)[0]
+    dfa = regex_to_dfa("(a|b)*abb")
+    step0 = simulate(dfa, "aabb").steps[0]
+    assert charts(app) == [automaton_to_dot(dfa, highlight_states=step0.active_after,
+                                            highlight_edges=step0.symbol_edges + step0.epsilon_edges)]
 
 
 def test_10_invalid_input_shows_no_diagram():

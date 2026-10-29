@@ -42,6 +42,7 @@ ACCEPTING_BORDER = "#34d399"
 EDGE = "#94a3b8"
 EPSILON_EDGE = "#c084fc"
 HIGHLIGHT = "#fbbf24"
+HIGHLIGHT_FILL = "#422006"
 
 Edge = tuple[str, Optional[str], str]
 
@@ -98,7 +99,8 @@ def build_graph(
         if state == automaton.initial_state:
             attributes.update(color=INITIAL_BORDER, penwidth="2")
         if state in marked_states:
-            attributes.update(color=HIGHLIGHT, penwidth="3")
+            # Restyle only: an accepting state keeps its double circle.
+            attributes.update(color=HIGHLIGHT, fillcolor=HIGHLIGHT_FILL, penwidth="3")
         graph.node(node, label=_label(state), **attributes)
 
     graph.edge("start", ids[automaton.initial_state], color=INITIAL_BORDER, penwidth="1.5")
@@ -148,15 +150,24 @@ LEGEND = (
 
 
 def render_automaton_diagram(automaton: FiniteAutomaton, *, key: str, title: Optional[str] = None,
-                             file_name: Optional[str] = None) -> None:
-    """Show the state diagram (or a size notice) plus a DOT download. `key` must be unique on the page."""
+                             file_name: Optional[str] = None, highlight_states: Iterable[str] = (),
+                             highlight_edges: Iterable[Edge] = ()) -> None:
+    """
+    Show the state diagram (or a size notice) plus a DOT download. `key` must be unique
+    on the page. Highlights only restyle the drawn states and edges; the download is
+    always the plain diagram of the complete automaton.
+    """
     if title:
         st.markdown(f"#### {title}")
     kind = "dfa" if automaton.machine_type == DFA else "nfa"
     file_name = file_name or f"finite-trace-{kind}.dot"
+    highlight_states, highlight_edges = tuple(highlight_states), tuple(highlight_edges)
+    highlighted = bool(highlight_states or highlight_edges)
     with st.container(border=True):
         direction = DIRECTIONS[st.session_state.get("diagram_direction", "Left to right")]
         dot = automaton_to_dot(automaton, direction=direction)
+        shown = automaton_to_dot(automaton, direction=direction, highlight_states=highlight_states,
+                                 highlight_edges=highlight_edges) if highlighted else dot
         if is_too_large(automaton):
             st.warning(
                 f"This automaton has {len(automaton.states)} states and {len(diagram_edges(automaton))} "
@@ -166,8 +177,12 @@ def render_automaton_diagram(automaton: FiniteAutomaton, *, key: str, title: Opt
                 icon="ℹ️",
             )
         else:
-            st.graphviz_chart(dot, alt=diagram_summary(automaton))
-            st.caption(LEGEND)
+            alt = diagram_summary(automaton)
+            if highlighted:
+                active = ", ".join(sorted(highlight_states)) or "none"
+                alt += f" Highlighted active states: {active}."
+            st.graphviz_chart(shown, alt=alt)
+            st.caption(LEGEND + (" **Amber** = active states and the transitions just used." if highlighted else ""))
         st.download_button(
             "Download DOT",
             data=dot,

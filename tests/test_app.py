@@ -69,9 +69,9 @@ def test_unfinished_controls_are_disabled():
     assert all(button.disabled for button in other_buttons)
     assert all(text_input.disabled for text_input in other_inputs)
     labels = {button.label for button in app.button}
-    # Animation stays unavailable until Module 08 (string simulation itself works since Module 06).
-    assert {"▶ Play", "⏸ Pause", "⏭ Step", "↺ Reset"} <= labels
-    assert all(b.disabled for b in app.button if b.label in {"▶ Play", "⏸ Pause", "⏭ Step", "↺ Reset"})
+    # Since Module 08 the playback controls are real and appear only with a simulation result,
+    # so no animation control may exist before anything has been simulated.
+    assert not labels & {"▶ Play", "⏸ Pause", "⏭ Next", "⏮ Previous", "↺ Reset", "⟳ Replay"}
 
 
 def test_parser_controls_are_enabled():

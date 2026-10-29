@@ -4,7 +4,7 @@
 
 FiniteTrace is an open-source, interactive tool for building, visualizing, converting and simulating finite automata: Deterministic Finite Automata (DFA) and Nondeterministic Finite Automata (NFA), including ε-NFAs. It is written in plain Python with a Streamlit interface. All automata algorithms are implemented from scratch so the code doubles as a readable reference.
 
-> **Status:** in development. Modules 01–07 of 10 are complete. Automata can be built from regular expressions, structured language rules, exact strings or manual DFA/NFA definitions; every automaton is drawn as a state diagram; NFAs can be converted to DFAs; and test strings can be simulated with a full trace. Animated simulation is not available yet.
+> **Status:** in development. Modules 01–08 of 10 are complete. Automata can be built from regular expressions, structured language rules, exact strings or manual DFA/NFA definitions; every automaton is drawn as a state diagram; NFAs can be converted to DFAs; and test strings can be simulated and played back step by step on the diagram.
 
 ## Objectives
 
@@ -74,7 +74,11 @@ FiniteTrace is an open-source, interactive tool for building, visualizing, conve
 
 - State diagrams (`ui/visualizer.py`) for every automaton in the Builder, Converter (source NFA and converted DFA) and String Simulator, with a DOT download.
 
-**Not implemented yet:** animated simulation (highlighting states and transitions step by step).
+### Implemented (Module 08)
+
+- Interactive playback of simulations (`ui/animation.py`): play, pause, previous, next, reset, replay and speed control, with active states and used transitions highlighted on the diagram.
+
+**Planned:** integration hardening (Module 09) and the release (Module 10).
 
 ## Regular expression syntax
 
@@ -391,7 +395,7 @@ Positions count from 1. A typed `ε` is an ordinary character, not the empty str
 | `active_after` | the active states after ε-closure |
 | `explanation` | a one-line summary |
 
-These records contain everything a later animation needs: active states, the transitions taken and the input position.
+The String Simulator's playback (below) draws each of these records as one frame.
 
 ### Example
 
@@ -452,7 +456,7 @@ Every transition `(source, symbol, destination)` is drawn as its own arrow, incl
 
 - **Automata Builder:** with every generated ε-NFA, DFA, language-rule, exact-string and manual automaton.
 - **NFA to DFA Converter:** the source NFA in section A and the converted DFA in section C. DFA states are drawn by their short names (`D0`, `D1`, …); the NFA subsets they stand for are in the mapping table in section B.
-- **String Simulator:** a **static** diagram of the simulated automaton next to the verdict and trace. Highlighting active states and transitions step by step is planned for Module 08.
+- **String Simulator:** the diagram of the simulated automaton, animated step by step (see *Interactive simulation & animation*).
 
 **Layout and size.** Graphviz's `dot` layout arranges the states; the sidebar's *Diagram layout* setting switches between left-to-right and top-to-bottom. Diagrams are drawn for automata with up to 80 states and 250 transitions. Larger automata show a notice instead of a partial picture, and their full transition table and complete DOT source remain available.
 
@@ -468,6 +472,39 @@ from ui.visualizer import automaton_to_dot
 
 dot = automaton_to_dot(regex_to_dfa("(a|b)*abb"))  # DOT source string, no Graphviz executable needed
 ```
+
+## Interactive simulation & animation
+
+After **Simulate String**, the String Simulator shows an *Interactive simulation* panel that replays the run on the automaton's diagram. The animation is a view of the trace the simulator already computed. It does not simulate anything itself, so it always agrees with the verdict.
+
+**Frames.** Each `SimulationStep` is one frame. **Step 0** is the starting configuration: no input is consumed, and for an NFA it is the ε-closure of the initial state. Frame *i* has read *i* characters, so a string of length *n* has *n + 1* frames. The ε-transitions taken after a character belong to that character's frame; they are never counted as consumed input. The empty string has a single frame, which is also the last one.
+
+**What is highlighted (in amber, with a thicker outline and filled states):**
+
+- **Active states:** the one current state of a DFA, or *every* active state of an NFA. No branch is picked out.
+- **Transitions just used:** the symbol transitions followed (`symbol_edges`) and the ε-transitions used for the closure (`epsilon_edges`, still dashed).
+- Highlighting only restyles existing states and arrows. Layout, names, double circles and the initial arrow never change, so the diagram doesn't jump between frames. If an NFA's active set becomes empty, nothing is highlighted, and the remaining characters are still stepped through.
+
+Next to the diagram the panel shows **Step i of n** with a status (*Ready*, *Playing*, *Paused*, *Completed*), a progress bar of characters consumed, and the input string with the character just read highlighted. It also shows the character being read, the active states before and after, the transitions used, and the step's explanation from the trace. On the last frame it repeats the final verdict (Accepted or Rejected) with its reason.
+
+**Controls:**
+
+| Control | Effect |
+| --- | --- |
+| ▶ Play | advance automatically from the current step; stops by itself on the last step |
+| ⏸ Pause | stop on the current step; Play resumes from there |
+| ⏮ Previous / ⏭ Next | move exactly one step (and pause) |
+| ↺ Reset | back to step 0, stopped |
+| ⟳ Replay | back to step 0 and play |
+| Playback speed | Slow (2 s), Normal (1 s), Fast (0.5 s) or Very fast (0.25 s) per step |
+
+Changing the speed keeps the current step and restarts the step timer. Each step waits at least the chosen interval, measured with a monotonic clock, and a late update never skips a step. Timing depends on the browser, so a step can take up to about a quarter-interval longer. In testing, Normal produced roughly 1.0–1.3 s per step.
+
+**How it runs.** Playback uses Streamlit's `st.fragment(run_every=...)`: only the panel reruns on a timer, about four times per step, and only while playing. Pausing, finishing or changing speed recreates the panel with the right timer. Nothing reruns while idle, and there are no sleep loops or background threads. The automaton and trace are computed once by **Simulate String**; playback only redraws the current frame.
+
+**Staleness.** Every simulation gets a new run id. Pressing **Simulate String** again, even with the same inputs, starts at step 0. Editing the test string, expression, machine type or chosen automaton stops playback and hides the old result. Each browser session has its own playback and speed.
+
+**Large automata.** Above the diagram limit (80 states or 250 transitions), the panel still steps through the run, showing the step, the active states, the input progress and the explanation. It explains that the diagram cannot be drawn for highlighting. The verdict is unaffected.
 
 ## Installation
 
@@ -535,6 +572,7 @@ finite-trace/
 │   ├── manual_builder.py  # Manual DFA/NFA definitions
 │   └── simulator.py       # DFA/NFA string simulation with traces
 ├── ui/
+│   ├── animation.py       # Playback controller and interactive simulation panel
 │   ├── automaton_view.py  # Shared automaton summary and transition tables
 │   ├── builder_modes.py   # Language rule, exact string and manual input forms
 │   ├── simulator_view.py  # String Simulator tab
@@ -551,6 +589,8 @@ finite-trace/
 │   ├── test_simulator_app.py # Streamlit tests for the String Simulator
 │   ├── test_visualizer.py # Diagram and table consistency tests
 │   ├── test_visualizer_app.py # Streamlit tests for diagrams
+│   ├── test_animation.py  # Playback controller and highlighting tests
+│   ├── test_animation_app.py # Streamlit tests for playback
 │   └── test_app.py        # Streamlit smoke tests
 ├── .streamlit/config.toml # Theme configuration
 ├── requirements.txt
@@ -569,7 +609,7 @@ finite-trace/
 | 05 | Language rules & manual input | Complete |
 | 06 | DFA & NFA simulation engine | Complete |
 | 07 | State diagrams & transition tables | Complete |
-| 08 | Interactive interface & animation | Planned |
+| 08 | Interactive interface & animation | Complete |
 | 09 | Integration, robustness & testing | Planned |
 | 10 | Release, documentation & final verification | Planned |
 

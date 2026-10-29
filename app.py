@@ -66,7 +66,7 @@ def render_header() -> None:
         <div class="ft-header">
             <div class="ft-title">{APP_NAME}</div>
             <div class="ft-subtitle">{SUBTITLE}</div>
-            <div class="ft-tagline">{TAGLINE.upper()}<span class="ft-badge">In development · 7 of 10 modules</span></div>
+            <div class="ft-tagline">{TAGLINE.upper()}<span class="ft-badge">In development · 8 of 10 modules</span></div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -74,7 +74,7 @@ def render_header() -> None:
     st.info(
         "Build automata from regular expressions, language rules, exact strings or manual "
         "definitions, see their state diagrams, convert NFAs to DFAs, and simulate test strings "
-        "with a full trace. Animated simulation is not available yet.",
+        "with an animated, step-by-step playback.",
         icon="🛠️",
     )
 
@@ -615,8 +615,7 @@ def render_sidebar() -> None:
         st.markdown("#### Diagrams")
         render_layout_control()
         st.markdown("#### Status")
-        st.write("Module 07 of 10 complete: state diagrams for every automaton. "
-                 "Animated simulation is planned.")
+        st.write("Module 08 of 10 complete: interactive, animated string simulation.")
 
 
 def main() -> None:

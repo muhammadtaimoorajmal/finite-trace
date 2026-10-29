@@ -2,6 +2,9 @@
 String Simulator tab: pick an automaton, enter a test string, and see the
 verdict with a step-by-step trace from core/simulator.py.
 
+Each run gets a new run id (a per-session counter), so pressing Simulate String
+again, even with the same inputs, starts its animation from step 0.
+
 Three sources, each in its own tab with its own inputs and result:
     Regular Expression   build an ε-NFA or DFA directly from an expression
     Builder Automaton    any still-valid result from the Automata Builder
@@ -19,7 +22,7 @@ from core.regex_parser import MAX_EXPRESSION_LENGTH, RegexSyntaxError
 from core.simulator import MAX_SIMULATION_LENGTH, SimulationError, SimulationResult, simulate
 from core.thompson import ConstructionError, regex_to_nfa
 from ui.automaton_view import format_alphabet, format_states
-from ui.visualizer import render_automaton_diagram
+from ui.animation import render_animation, stop_playback
 
 SIMULATION_ERRORS = (RegexSyntaxError, ConstructionError, ConversionError, SimulationError)
 SIMULATOR_SOURCES = ["Regular Expression", "Builder Automaton", "Converted DFA"]
@@ -51,7 +54,7 @@ def _trace_rows(result: SimulationResult) -> list[dict]:
             (state,) = step.active_after
             rows.append({
                 "Step": step.index,
-                "Position": step.position or "—",
+                "Position": str(step.position) if step.position else "—",  # one type per column
                 "Read": step.symbol if step.symbol is not None else "Start",
                 "From": next(iter(step.active_before)) if step.active_before else "—",
                 "To": state,
@@ -78,7 +81,15 @@ def _trace_rows(result: SimulationResult) -> list[dict]:
     return rows
 
 
-def render_simulation_result(source: str, automaton: FiniteAutomaton, result: SimulationResult, *, key: str) -> None:
+def _next_run_id() -> int:
+    """A new id for every simulation run in this session."""
+    run_id = st.session_state.get("sim_run_counter", 0) + 1
+    st.session_state["sim_run_counter"] = run_id
+    return run_id
+
+
+def render_simulation_result(source: str, automaton: FiniteAutomaton, result: SimulationResult, *,
+                             key: str, run_id: int) -> None:
     if result.accepted:
         st.success(f"**Accepted**: {result.explanation.removeprefix('Accepted: ')}", icon="✅")
     else:
@@ -104,9 +115,7 @@ def render_simulation_result(source: str, automaton: FiniteAutomaton, result: Si
                 st.markdown(f"**{label}**")
                 st.code(value, language=None, wrap_lines=True)
 
-    render_automaton_diagram(automaton, key=key, title="Simulated automaton")
-    st.caption("Static diagram of the automaton above. Highlighting of active states during "
-               "simulation arrives in Module 08; the trace table shows every step now.")
+    render_animation(f"{key}_playback", automaton, result, run_id)
 
     caption = (
         "A DFA is always in exactly one state; each row follows its single transition."
@@ -125,13 +134,14 @@ def _render_outcome(outcome_key: str, signature) -> None:
         return
     saved_signature, result = outcome
     if saved_signature != signature:
+        stop_playback(f"{outcome_key}_playback")  # never keep animating a stale run
         st.caption("The automaton or test string has changed. Press Simulate String to run it again.")
         return
     if isinstance(result, ValueError):
         st.error(str(result), icon="⚠️")
         return
-    source, automaton, simulation = result
-    render_simulation_result(source, automaton, simulation, key=outcome_key)
+    source, automaton, simulation, run_id = result
+    render_simulation_result(source, automaton, simulation, key=outcome_key, run_id=run_id)
 
 
 def _test_string_input(key: str) -> None:
@@ -149,7 +159,7 @@ def simulate_regex() -> None:
     try:
         automaton = regex_to_dfa(expression) if machine == DFA else regex_to_nfa(expression)
         source = f"Regular expression {expression} → {'DFA (subset construction)' if machine == DFA else 'ε-NFA (Thompson)'}"
-        result = (source, automaton, simulate(automaton, text))
+        result = (source, automaton, simulate(automaton, text), _next_run_id())
     except SIMULATION_ERRORS as error:
         result = error
     st.session_state["sim_regex_outcome"] = (_regex_signature(), result)
@@ -190,10 +200,15 @@ def _render_saved_source(prefix: str, candidates, empty_message: str) -> None:
         if automaton is None:
             return
         try:
-            result = (label, automaton, simulate(automaton, text))
+            result = (label, automaton, simulate(automaton, text), _next_run_id())
         except SimulationError as error:
             result = error
         st.session_state[outcome_key] = (signature(), result)
+
+    # The dropdown keeps its value by key, so an empty first render leaves it at None even after
+    # automata appear, and a stale choice can linger. Select the first available one instead.
+    if labels and st.session_state.get(choice_key) not in labels:
+        st.session_state[choice_key] = labels[0]
 
     with st.container(border=True):
         if not labels:
@@ -220,7 +235,15 @@ def render_simulator_tab(builder_candidates, converted_candidates) -> None:
             "- **Acceptance:** after the whole input is read, the string is accepted if an active state "
             "is accepting. An NFA whose active set becomes empty rejects.\n"
             "- **Empty string:** leave the test string empty. Characters outside the alphabet "
-            "(including a typed 'ε') are reported as invalid input, not as a rejection."
+            "(including a typed 'ε') are reported as invalid input, not as a rejection.\n"
+            "- **Playback:** after simulating, **▶ Play** steps through the run automatically; "
+            "**⏸ Pause** stops on the current step and Play resumes from there. **⏮ Previous** and "
+            "**⏭ Next** move one step, **↺ Reset** returns to step 0 and **⟳ Replay** restarts and plays. "
+            "*Playback speed* sets the time between steps.\n"
+            "- **Highlighting:** active states and the transitions just used are shown in amber. A DFA has "
+            "one active state; an NFA highlights every active state and every transition it used, including "
+            "dashed ε-transitions, which never consume a character. Step 0 shows the starting states.\n"
+            "- **Verdict:** decided once the whole input is read, as shown on the last step."
         )
     regex_tab, builder_tab, converted_tab = st.tabs(SIMULATOR_SOURCES)
     with regex_tab:
@@ -237,10 +260,3 @@ def render_simulator_tab(builder_candidates, converted_candidates) -> None:
             "sim_converted", converted_candidates,
             "No converted DFA is available. Convert an NFA in the NFA to DFA Converter first.",
         )
-    with st.container(border=True):
-        st.markdown("**Animation**")
-        controls = st.columns(4)
-        for column, label in zip(controls, ["▶ Play", "⏸ Pause", "⏭ Step", "↺ Reset"]):
-            column.button(label, disabled=True, width="stretch")
-        st.caption("⏳ Step-by-step highlighting on the diagram (play, pause, step, reset) arrives in Module 08; "
-                   "the trace table above already shows every step.")
