@@ -49,9 +49,10 @@ def _show_stale_or_error(outcome, signature, button: str) -> Optional[object]:
     return result
 
 
-def _render_generated(result: LanguageAutomaton, automaton: FiniteAutomaton, details) -> None:
+def _render_generated(result: LanguageAutomaton, automaton: FiniteAutomaton, details, diagram_key: str) -> None:
     st.success(f"{automaton.machine_type} generated with {len(automaton.states)} states.", icon="✅")
-    render_automaton(automaton, details + [("Description", result.description)], result.state_notes)
+    render_automaton(automaton, details + [("Description", result.description)], result.state_notes,
+                     diagram_key=diagram_key)
     if automaton.machine_type == NFA:
         st.caption(NFA_NOTE)
 
@@ -121,7 +122,7 @@ def render_language_mode() -> None:
         rule, _, parameter = _language_parameter()
         if isinstance(parameter, tuple):
             parameter = f"symbol '{parameter[0]}', k = {parameter[1]}"
-        _render_generated(result, automaton, [("Rule", f"{RULES[rule][0]}: {parameter}")])
+        _render_generated(result, automaton, [("Rule", f"{RULES[rule][0]}: {parameter}")], "lang")
 
 
 # ---------------------------------------------------------------------------
@@ -170,7 +171,7 @@ def render_exact_mode() -> None:
     if shown is not None:
         result, automaton = shown
         text = st.session_state.get("exact_text", "")
-        _render_generated(result, automaton, [("Exact string", text if text else "ε (empty string)")])
+        _render_generated(result, automaton, [("Exact string", text if text else "ε (empty string)")], "exact")
 
 
 # ---------------------------------------------------------------------------
@@ -288,7 +289,7 @@ def render_manual_mode() -> None:
         automaton = shown
         kind = "DFA (complete and deterministic)" if automaton.machine_type == DFA else "NFA"
         st.success(f"Valid {kind} with {len(automaton.states)} states.", icon="✅")
-        render_automaton(automaton, [])
+        render_automaton(automaton, [], diagram_key="manual")
         if automaton.machine_type == NFA:
             st.caption("To convert it, open the NFA to DFA Converter tab and choose From Manual NFA.")
         else:

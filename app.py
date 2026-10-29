@@ -34,6 +34,7 @@ from ui.builder_modes import (
     render_manual_mode,
 )
 from ui.simulator_view import render_simulator_tab
+from ui.visualizer import render_automaton_diagram, render_layout_control
 
 APP_NAME = "FiniteTrace"
 TAGLINE = "Visualize. Convert. Simulate."
@@ -63,23 +64,19 @@ def render_header() -> None:
     st.markdown(
         f"""
         <div class="ft-header">
-            <p class="ft-title">{APP_NAME}</p>
-            <p class="ft-subtitle">{SUBTITLE}</p>
-            <p class="ft-tagline">{TAGLINE.upper()}<span class="ft-badge">In development · 6 of 10 modules</span></p>
+            <div class="ft-title">{APP_NAME}</div>
+            <div class="ft-subtitle">{SUBTITLE}</div>
+            <div class="ft-tagline">{TAGLINE.upper()}<span class="ft-badge">In development · 7 of 10 modules</span></div>
         </div>
         """,
         unsafe_allow_html=True,
     )
     st.info(
         "Build automata from regular expressions, language rules, exact strings or manual "
-        "definitions, convert NFAs to DFAs, and simulate test strings with a full trace. "
-        "Graphical state diagrams and animation are not available yet.",
+        "definitions, see their state diagrams, convert NFAs to DFAs, and simulate test strings "
+        "with a full trace. Animated simulation is not available yet.",
         icon="🛠️",
     )
-
-
-def coming_soon(module: str) -> None:
-    st.caption(f"⏳ Coming in {module}")
 
 
 # The builder shows the result of the most recent action only. It is stored in
@@ -180,9 +177,10 @@ def render_nfa_success(expression: str, result: ConstructionResult) -> None:
         f"ε-NFA generated with {len(nfa.states)} states and {len(nfa.transition_list())} transitions.",
         icon="✅",
     )
+    render_automaton_diagram(nfa, key="builder_nfa", title="State diagram")
     render_nfa_overview(expression, nfa)
     render_construction_steps(result)
-    st.caption("A state diagram for this NFA arrives in Module 07. Use Generate DFA to convert it.")
+    st.caption("Use Generate DFA to convert this ε-NFA, or the NFA to DFA Converter to see each step.")
 
 
 def render_nfa_overview(expression: str, nfa: FiniteAutomaton) -> None:
@@ -318,6 +316,7 @@ def render_dfa_success(expression: str, conversion: ConversionResult) -> None:
         "every state has exactly one transition per symbol.",
         icon="✅",
     )
+    render_automaton_diagram(dfa, key="builder_dfa", title="State diagram")
     render_dfa_summary("Regular expression", expression, conversion)
     render_state_mapping(conversion)
     render_dfa_transition_table(conversion)
@@ -396,10 +395,7 @@ def render_regex_mode() -> None:
                 on_click=generate_dfa_and_store,
                 help="Build the ε-NFA, then convert it to an equivalent DFA with subset construction.",
             )
-        with st.container(border=True):
-            st.markdown("**State diagram**")
-            st.write("A graphical state diagram will appear here.")
-            coming_soon("Module 07")
+        st.caption("Generated automata are shown below with their state diagram, summary and transition table.")
 
     render_builder_outcome()
 
@@ -506,12 +502,15 @@ def render_conversion_outcome() -> None:
     )
     with st.container(border=True):
         st.markdown("### A. Original ε-NFA")
+        render_automaton_diagram(construction.automaton, key="converter_nfa", title="ε-NFA diagram")
         render_nfa_overview(expression, construction.automaton)
     with st.container(border=True):
         st.markdown("### B. Subset construction")
         render_subset_construction(conversion)
     with st.container(border=True):
         st.markdown("### C. Converted DFA")
+        render_automaton_diagram(conversion.dfa, key="converter_dfa", title="DFA diagram")
+        st.caption("Each DFA state stands for the set of NFA states listed in section B.")
         render_dfa_summary("Regular expression", expression, conversion)
         render_dfa_transition_table(conversion)
 
@@ -564,12 +563,14 @@ def render_manual_conversion() -> None:
     )
     with st.container(border=True):
         st.markdown("### A. Manual NFA")
-        render_automaton(nfa, [("Source", "Manual NFA from Automata Builder")])
+        render_automaton(nfa, [("Source", "Manual NFA from Automata Builder")], diagram_key="converter_manual_nfa")
     with st.container(border=True):
         st.markdown("### B. Subset construction")
         render_subset_construction(conversion)
     with st.container(border=True):
         st.markdown("### C. Converted DFA")
+        render_automaton_diagram(conversion.dfa, key="converter_manual_dfa", title="DFA diagram")
+        st.caption("Each DFA state stands for the set of NFA states listed in section B.")
         render_dfa_summary("Source", "Manual NFA from Automata Builder", conversion)
         render_dfa_transition_table(conversion)
 
@@ -611,9 +612,11 @@ def render_sidebar() -> None:
             "- **Convert**: turn an NFA into a DFA with subset construction, showing ε-closures.\n"
             "- **Simulate**: step through a test string and see whether it is accepted."
         )
+        st.markdown("#### Diagrams")
+        render_layout_control()
         st.markdown("#### Status")
-        st.write("Module 06 of 10 complete: DFA and NFA string simulation. "
-                 "State diagrams and animation are planned.")
+        st.write("Module 07 of 10 complete: state diagrams for every automaton. "
+                 "Animated simulation is planned.")
 
 
 def main() -> None:

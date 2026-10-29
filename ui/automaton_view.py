@@ -5,6 +5,7 @@ from typing import Optional
 import streamlit as st
 
 from core.automata import DFA, EPSILON_DISPLAY, FiniteAutomaton, state_sort_key
+from ui.visualizer import render_automaton_diagram
 
 
 def format_alphabet(automaton: FiniteAutomaton) -> str:
@@ -49,8 +50,14 @@ def transition_grid_rows(automaton: FiniteAutomaton, notes: Optional[dict] = Non
     return rows
 
 
-def render_automaton(automaton: FiniteAutomaton, details: list[tuple[str, str]], notes: Optional[dict] = None) -> None:
-    """Show metrics, the given detail fields, the state set and the transition table."""
+def render_automaton(
+    automaton: FiniteAutomaton,
+    details: list[tuple[str, str]],
+    notes: Optional[dict] = None,
+    *,
+    diagram_key: Optional[str] = None,
+) -> None:
+    """Show metrics, the given detail fields, the state set, the diagram (if keyed) and the transition table."""
     transitions = automaton.transition_list()
     epsilon_count = sum(1 for _, symbol, _ in transitions if symbol is None)
     with st.container(border=True):
@@ -72,6 +79,9 @@ def render_automaton(automaton: FiniteAutomaton, details: list[tuple[str, str]],
                 st.code(value, language=None, wrap_lines=True)
         st.markdown("**States**")
         st.code("{" + format_states(automaton.states) + "}", language=None, wrap_lines=True)
+
+    if diagram_key:
+        render_automaton_diagram(automaton, key=diagram_key, title="State diagram")
 
     st.markdown("#### Transition table")
     if automaton.alphabet or epsilon_count:

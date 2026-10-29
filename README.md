@@ -4,7 +4,7 @@
 
 FiniteTrace is an open-source, interactive tool for building, visualizing, converting and simulating finite automata: Deterministic Finite Automata (DFA) and Nondeterministic Finite Automata (NFA), including ε-NFAs. It is written in plain Python with a Streamlit interface. All automata algorithms are implemented from scratch so the code doubles as a readable reference.
 
-> **Status:** in development. Modules 01–06 of 10 are complete. Automata can be built from regular expressions, structured language rules, exact strings or manual DFA/NFA definitions; NFAs can be converted to DFAs; and test strings can be simulated on any of them with a full trace. Graphical state diagrams and animation are not available yet.
+> **Status:** in development. Modules 01–07 of 10 are complete. Automata can be built from regular expressions, structured language rules, exact strings or manual DFA/NFA definitions; every automaton is drawn as a state diagram; NFAs can be converted to DFAs; and test strings can be simulated with a full trace. Animated simulation is not available yet.
 
 ## Objectives
 
@@ -18,7 +18,7 @@ FiniteTrace is an open-source, interactive tool for building, visualizing, conve
 | --- | --- |
 | Language | Python 3.11+ (developed on 3.13) |
 | Web interface | [Streamlit](https://streamlit.io) |
-| Graph rendering | [Graphviz](https://graphviz.org) (Python package + system `dot` executable) |
+| Graph rendering | [Graphviz](https://graphviz.org) DOT, drawn in the browser by `st.graphviz_chart` (no system executable needed) |
 | Testing | pytest, Streamlit `AppTest` |
 | Automata algorithms | Implemented in this repository (no automata libraries) |
 
@@ -70,7 +70,11 @@ FiniteTrace is an open-source, interactive tool for building, visualizing, conve
 - Production string simulator (`core/simulator.py`) for DFAs, NFAs and ε-NFAs, with step-by-step traces and accept/reject explanations.
 - A working **String Simulator** tab that can simulate a regular expression directly (as an ε-NFA or DFA), any current Automata Builder result, or any converted DFA.
 
-**Not implemented yet:** graphical state diagrams and animation.
+### Implemented (Module 07)
+
+- State diagrams (`ui/visualizer.py`) for every automaton in the Builder, Converter (source NFA and converted DFA) and String Simulator, with a DOT download.
+
+**Not implemented yet:** animated simulation (highlighting states and transitions step by step).
 
 ## Regular expression syntax
 
@@ -429,6 +433,42 @@ print(result.explanation)    # Accepted: ... contains accepting state q13.
 print(accepts(automaton, "abab"))  # False (same engine)
 ```
 
+## State diagrams
+
+Every generated or entered automaton is drawn as a state diagram, built from the automaton's own data:
+
+| Notation | Meaning |
+| --- | --- |
+| circle | a state |
+| double circle | an accepting state |
+| arrow from a small dot | the initial state (a state can be both initial and accepting) |
+| arrow labelled `a` | a transition on `a`; an NFA may have several arrows with the same label from one state |
+| dashed arrow labelled `ε` | an ε-transition, which moves without reading input |
+| arrow back to the same state | a self-loop |
+
+Every transition `(source, symbol, destination)` is drawn as its own arrow, including the dead state's self-loops in a complete DFA. Nothing is merged, added or left out. Missing NFA transitions stay missing, and no dead state is added to an NFA. Colours only reinforce the notation (cyan initial state, green accepting states, purple ε-arrows); shapes and labels carry the meaning.
+
+**Where diagrams appear:**
+
+- **Automata Builder:** with every generated ε-NFA, DFA, language-rule, exact-string and manual automaton.
+- **NFA to DFA Converter:** the source NFA in section A and the converted DFA in section C. DFA states are drawn by their short names (`D0`, `D1`, …); the NFA subsets they stand for are in the mapping table in section B.
+- **String Simulator:** a **static** diagram of the simulated automaton next to the verdict and trace. Highlighting active states and transitions step by step is planned for Module 08.
+
+**Layout and size.** Graphviz's `dot` layout arranges the states; the sidebar's *Diagram layout* setting switches between left-to-right and top-to-bottom. Diagrams are drawn for automata with up to 80 states and 250 transitions. Larger automata show a notice instead of a partial picture, and their full transition table and complete DOT source remain available.
+
+**DOT download.** Every diagram has a **Download DOT** button with the complete Graphviz source (`finite-trace-dfa.dot` / `finite-trace-nfa.dot`). Open it in any Graphviz tool to render it as SVG, PNG or PDF. FiniteTrace itself does not export images.
+
+**Accessibility.** Each diagram has a text description as alt text, for example *"DFA state diagram with 5 states, initial state D0, accepting states D4, and 10 transitions over a, b."* The transition table next to it is a complete textual alternative.
+
+**Safety.** States are given internal node ids (`s0`, `s1`, … in sorted order) and names and symbols are escaped labels, so state names such as `state-final` or `x'y` and symbols such as `"`, `\` or `|` cannot change the diagram's structure. The DOT is generated deterministically: the same automaton always gives the same source.
+
+```python
+from core.converter import regex_to_dfa
+from ui.visualizer import automaton_to_dot
+
+dot = automaton_to_dot(regex_to_dfa("(a|b)*abb"))  # DOT source string, no Graphviz executable needed
+```
+
 ## Installation
 
 Requirements: Python 3.11 or newer, and Git.
@@ -449,9 +489,9 @@ Install dependencies using the virtual environment's interpreter:
 .venv/bin/python -m pip install -r requirements.txt
 ```
 
-### Graphviz system package
+### Graphviz (optional)
 
-The `graphviz` Python package needs the Graphviz `dot` executable to render diagrams. Diagrams arrive in a later module, so the app runs without it today, but installing it now is recommended:
+Diagrams in the app need **no** system installation: FiniteTrace generates DOT source in Python, and Streamlit's `st.graphviz_chart` lays it out in the browser. The Graphviz `dot` executable is only needed if you want to render a downloaded `.dot` file yourself, or to run the one optional test that renders diagrams on the server (it is skipped when `dot` is missing). To install it:
 
 - **Windows:** `winget install --id Graphviz.Graphviz -e` (or the installer from graphviz.org), then make sure `C:\Program Files\Graphviz\bin` is on your `PATH`.
 - **macOS:** `brew install graphviz`
@@ -498,7 +538,7 @@ finite-trace/
 │   ├── automaton_view.py  # Shared automaton summary and transition tables
 │   ├── builder_modes.py   # Language rule, exact string and manual input forms
 │   ├── simulator_view.py  # String Simulator tab
-│   └── visualizer.py      # Graphviz diagrams (planned)
+│   └── visualizer.py      # State diagrams (DOT generation and display)
 ├── tests/
 │   ├── test_automata.py   # Data model tests
 │   ├── test_regex_parser.py # Parser tests
@@ -509,6 +549,8 @@ finite-trace/
 │   ├── test_app_modes.py  # Streamlit tests for the input modes
 │   ├── test_simulator.py  # Simulator, trace and equivalence tests
 │   ├── test_simulator_app.py # Streamlit tests for the String Simulator
+│   ├── test_visualizer.py # Diagram and table consistency tests
+│   ├── test_visualizer_app.py # Streamlit tests for diagrams
 │   └── test_app.py        # Streamlit smoke tests
 ├── .streamlit/config.toml # Theme configuration
 ├── requirements.txt
@@ -526,7 +568,7 @@ finite-trace/
 | 04 | NFA-to-DFA conversion | Complete |
 | 05 | Language rules & manual input | Complete |
 | 06 | DFA & NFA simulation engine | Complete |
-| 07 | State diagrams & transition tables | Planned |
+| 07 | State diagrams & transition tables | Complete |
 | 08 | Interactive interface & animation | Planned |
 | 09 | Integration, robustness & testing | Planned |
 | 10 | Release, documentation & final verification | Planned |

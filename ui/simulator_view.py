@@ -19,6 +19,7 @@ from core.regex_parser import MAX_EXPRESSION_LENGTH, RegexSyntaxError
 from core.simulator import MAX_SIMULATION_LENGTH, SimulationError, SimulationResult, simulate
 from core.thompson import ConstructionError, regex_to_nfa
 from ui.automaton_view import format_alphabet, format_states
+from ui.visualizer import render_automaton_diagram
 
 SIMULATION_ERRORS = (RegexSyntaxError, ConstructionError, ConversionError, SimulationError)
 SIMULATOR_SOURCES = ["Regular Expression", "Builder Automaton", "Converted DFA"]
@@ -77,11 +78,11 @@ def _trace_rows(result: SimulationResult) -> list[dict]:
     return rows
 
 
-def render_simulation_result(source: str, automaton: FiniteAutomaton, result: SimulationResult) -> None:
+def render_simulation_result(source: str, automaton: FiniteAutomaton, result: SimulationResult, *, key: str) -> None:
     if result.accepted:
-        st.success(f"**Accepted** · {result.explanation}", icon="✅")
+        st.success(f"**Accepted**: {result.explanation.removeprefix('Accepted: ')}", icon="✅")
     else:
-        st.warning(f"**Rejected** · {result.explanation}", icon="❌")
+        st.warning(f"**Rejected**: {result.explanation.removeprefix('Rejected: ')}", icon="❌")
 
     with st.container(border=True):
         columns = st.columns(4)
@@ -102,6 +103,10 @@ def render_simulation_result(source: str, automaton: FiniteAutomaton, result: Si
             with left if index % 2 == 0 else right:
                 st.markdown(f"**{label}**")
                 st.code(value, language=None, wrap_lines=True)
+
+    render_automaton_diagram(automaton, key=key, title="Simulated automaton")
+    st.caption("Static diagram of the automaton above. Highlighting of active states during "
+               "simulation arrives in Module 08; the trace table shows every step now.")
 
     caption = (
         "A DFA is always in exactly one state; each row follows its single transition."
@@ -126,7 +131,7 @@ def _render_outcome(outcome_key: str, signature) -> None:
         st.error(str(result), icon="⚠️")
         return
     source, automaton, simulation = result
-    render_simulation_result(source, automaton, simulation)
+    render_simulation_result(source, automaton, simulation, key=outcome_key)
 
 
 def _test_string_input(key: str) -> None:
@@ -237,4 +242,5 @@ def render_simulator_tab(builder_candidates, converted_candidates) -> None:
         controls = st.columns(4)
         for column, label in zip(controls, ["▶ Play", "⏸ Pause", "⏭ Step", "↺ Reset"]):
             column.button(label, disabled=True, width="stretch")
-        st.caption("⏳ Animated state diagrams arrive in Modules 07 and 08; the trace table above is complete.")
+        st.caption("⏳ Step-by-step highlighting on the diagram (play, pause, step, reset) arrives in Module 08; "
+                   "the trace table above already shows every step.")
