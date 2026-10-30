@@ -2,7 +2,7 @@
 Regular expression parser for FiniteTrace.
 
 Turns a formal regular expression such as "(a|b)*abb" into a postfix token
-sequence that Thompson's construction (Module 03) can process with a stack.
+sequence that Thompson's construction (core/thompson.py) can process with a stack.
 
 Pipeline:
     1. tokenize()              characters    -> tokens (literals, operators, parentheses)
@@ -53,7 +53,7 @@ EPSILON_CHARACTERS = {"ε", "λ"}
 # Characters that may follow a backslash to become literal symbols.
 ESCAPABLE_CHARACTERS = set(OPERATOR_KINDS) | {"\\", "[", "]", "{", "}", "^", "$"}
 
-# Number of operands each operator takes; Module 03 pops this many NFA fragments.
+# Number of operands each operator takes; core/thompson.py pops this many NFA fragments.
 OPERATOR_ARITY = {UNION: 2, CONCAT: 2, STAR: 1, PLUS: 1, OPTIONAL: 1}
 
 # Binary operator precedence: higher binds tighter. Postfix unary operators

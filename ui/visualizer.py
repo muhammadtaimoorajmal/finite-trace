@@ -32,6 +32,12 @@ MAX_DIAGRAM_STATES = 80
 MAX_DIAGRAM_EDGES = 250
 
 DIRECTIONS = {"Left to right": "LR", "Top to bottom": "TB"}
+AUTOMATIC = "Automatic"
+LAYOUT_CHOICES = [AUTOMATIC, *DIRECTIONS]
+# Long left-to-right diagrams are shrunk to the page width until labels become unreadable,
+# while top-to-bottom ones keep their natural size and scroll. Automatic layout therefore
+# uses left to right only for small automata.
+AUTO_LEFT_TO_RIGHT_MAX_STATES = 15
 
 # Dark-theme palette; meaning never depends on colour alone (shapes and labels carry it).
 STATE_FILL = "#1e293b"
@@ -136,10 +142,18 @@ def diagram_summary(automaton: FiniteAutomaton) -> str:
     return text + (f", {epsilon} of them ε-transitions." if epsilon else ".")
 
 
+def layout_direction(automaton: FiniteAutomaton, choice: str = AUTOMATIC) -> str:
+    """Graphviz rankdir for a layout choice; Automatic depends only on the automaton's size."""
+    if choice in DIRECTIONS:
+        return DIRECTIONS[choice]
+    return "LR" if len(automaton.states) <= AUTO_LEFT_TO_RIGHT_MAX_STATES else "TB"
+
+
 def render_layout_control() -> None:
-    """One app-wide choice of diagram direction (wide graphs often read better top to bottom)."""
-    st.radio("Diagram layout", list(DIRECTIONS), key="diagram_direction",
-             help="Direction in which state diagrams are laid out.")
+    """One app-wide choice of diagram direction."""
+    st.radio("Diagram layout", LAYOUT_CHOICES, key="diagram_direction",
+             help=f"Automatic draws automata with up to {AUTO_LEFT_TO_RIGHT_MAX_STATES} states left to right "
+                  "and larger ones top to bottom, so their labels stay readable.")
 
 
 LEGEND = (
@@ -164,7 +178,7 @@ def render_automaton_diagram(automaton: FiniteAutomaton, *, key: str, title: Opt
     highlight_states, highlight_edges = tuple(highlight_states), tuple(highlight_edges)
     highlighted = bool(highlight_states or highlight_edges)
     with st.container(border=True):
-        direction = DIRECTIONS[st.session_state.get("diagram_direction", "Left to right")]
+        direction = layout_direction(automaton, st.session_state.get("diagram_direction", AUTOMATIC))
         dot = automaton_to_dot(automaton, direction=direction)
         shown = automaton_to_dot(automaton, direction=direction, highlight_states=highlight_states,
                                  highlight_edges=highlight_edges) if highlighted else dot

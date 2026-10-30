@@ -4,7 +4,7 @@
 
 FiniteTrace is an open-source, interactive tool for building, visualizing, converting and simulating finite automata: Deterministic Finite Automata (DFA) and Nondeterministic Finite Automata (NFA), including ε-NFAs. It is written in plain Python with a Streamlit interface. All automata algorithms are implemented from scratch so the code doubles as a readable reference.
 
-> **Status:** in development. Modules 01–08 of 10 are complete. Automata can be built from regular expressions, structured language rules, exact strings or manual DFA/NFA definitions; every automaton is drawn as a state diagram; NFAs can be converted to DFAs; and test strings can be simulated and played back step by step on the diagram.
+> **Status:** in development. Modules 01–09 of 10 are complete. Automata can be built from regular expressions, structured language rules, exact strings or manual DFA/NFA definitions; every automaton is drawn as a state diagram; NFAs can be converted to DFAs; and test strings can be simulated and played back step by step on the diagram.
 
 ## Objectives
 
@@ -22,14 +22,14 @@ FiniteTrace is an open-source, interactive tool for building, visualizing, conve
 | Testing | pytest, Streamlit `AppTest` |
 | Automata algorithms | Implemented in this repository (no automata libraries) |
 
-## Planned functionality
+## Features
 
 - Parse regular expressions and build equivalent ε-NFAs (Thompson's construction).
 - Define languages through structured rules or as a single exact string.
 - Enter DFA/NFA transition definitions manually.
 - Convert NFAs to DFAs with subset construction, showing ε-closures and state subsets.
 - Generate state diagrams and transition tables.
-- Simulate test strings on DFAs and NFAs with play, pause, step and reset controls.
+- Simulate test strings on DFAs and NFAs and replay each run on the diagram with play, pause, step, reset and replay controls.
 - Report whether a string is accepted or rejected.
 
 ## Current implementation status
@@ -78,7 +78,12 @@ FiniteTrace is an open-source, interactive tool for building, visualizing, conve
 
 - Interactive playback of simulations (`ui/animation.py`): play, pause, previous, next, reset, replay and speed control, with active states and used transitions highlighted on the diagram.
 
-**Planned:** integration hardening (Module 09) and the release (Module 10).
+### Implemented (Module 09)
+
+- Integration and robustness testing: end-to-end workflows through the interface, randomized equivalence tests against independent oracles, input-safety and limit checks, and a GitHub Actions workflow that runs the test suite on Python 3.11 and 3.13.
+- Fixes found by that testing, including an *Automatic* diagram layout that keeps larger diagrams readable.
+
+**Planned:** the release (Module 10).
 
 ## Regular expression syntax
 
@@ -234,7 +239,7 @@ The DFA accepts exactly `a` and `b`.
 ### Using the app
 
 - **Automata Builder → Generate DFA** runs the whole pipeline (parse, Thompson's construction, subset construction) on the current expression and shows a summary, the DFA-state-to-NFA-subset mapping and the transition table.
-- **NFA to DFA Converter** has its own input. **Convert NFA to DFA** shows (A) the source ε-NFA, (B) the initial ε-closure, the state mapping and every `move` / `ε-closure` calculation, and (C) the resulting DFA. Manual NFA input is planned for Module 05.
+- **NFA to DFA Converter** has its own input. **Convert NFA to DFA** shows (A) the source ε-NFA, (B) the initial ε-closure, the state mapping and every `move` / `ε-closure` calculation, and (C) the resulting DFA. To convert a manually defined NFA instead, use the converter's **From Manual NFA** tab (see *Converting a manual NFA*).
 
 ### In code
 
@@ -458,7 +463,7 @@ Every transition `(source, symbol, destination)` is drawn as its own arrow, incl
 - **NFA to DFA Converter:** the source NFA in section A and the converted DFA in section C. DFA states are drawn by their short names (`D0`, `D1`, …); the NFA subsets they stand for are in the mapping table in section B.
 - **String Simulator:** the diagram of the simulated automaton, animated step by step (see *Interactive simulation & animation*).
 
-**Layout and size.** Graphviz's `dot` layout arranges the states; the sidebar's *Diagram layout* setting switches between left-to-right and top-to-bottom. Diagrams are drawn for automata with up to 80 states and 250 transitions. Larger automata show a notice instead of a partial picture, and their full transition table and complete DOT source remain available.
+**Layout and size.** Graphviz's `dot` layout arranges the states. The sidebar's *Diagram layout* setting defaults to **Automatic**: automata with up to 15 states are drawn left to right, and larger ones top to bottom. Wide left-to-right diagrams are shrunk to the page width until their labels become unreadable, while top-to-bottom ones keep their natural size and scroll. You can also choose *Left to right* or *Top to bottom* yourself. Diagrams are drawn for automata with up to 80 states and 250 transitions. Larger automata show a notice instead of a partial picture, and their full transition table and complete DOT source remain available.
 
 **DOT download.** Every diagram has a **Download DOT** button with the complete Graphviz source (`finite-trace-dfa.dot` / `finite-trace-nfa.dot`). Open it in any Graphviz tool to render it as SVG, PNG or PDF. FiniteTrace itself does not export images.
 
@@ -558,6 +563,8 @@ Then open <http://localhost:8501>.
 .venv/bin/python -m pytest
 ```
 
+The suite covers the algorithms, randomized equivalence checks against independent oracles, and the Streamlit interface (through `streamlit.testing.v1.AppTest`). One optional test renders diagrams with the Graphviz `dot` executable and is skipped when it is not installed. GitHub Actions (`.github/workflows/tests.yml`) runs the suite on Python 3.11 and 3.13 for every push and pull request to `main`.
+
 ## Project structure
 
 ```text
@@ -610,7 +617,7 @@ finite-trace/
 | 06 | DFA & NFA simulation engine | Complete |
 | 07 | State diagrams & transition tables | Complete |
 | 08 | Interactive interface & animation | Complete |
-| 09 | Integration, robustness & testing | Planned |
+| 09 | Integration, robustness & testing | Complete |
 | 10 | Release, documentation & final verification | Planned |
 
 ## License

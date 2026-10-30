@@ -3,12 +3,18 @@ FiniteTrace - Streamlit entry point.
 
 Run with:  python -m streamlit run app.py
 
-The application shell provides branding, navigation, and clearly-labelled
-placeholders for features that later modules will build. In the Automata
-Builder, regular expressions can be parsed (core/regex_parser.py), turned
-into ε-NFAs with Thompson's construction (core/thompson.py) and converted to
-DFAs with subset construction (core/converter.py), which the NFA to DFA
-Converter tab shows step by step.
+This file holds the page layout and the regular-expression parts of the
+interface; the algorithms live in core/ and the other views in ui/:
+
+    Automata Builder      automata from a regular expression (core/regex_parser.py,
+                          core/thompson.py, core/converter.py), a language rule or exact
+                          string (core/language_builder.py) or a manual definition
+                          (core/manual_builder.py); forms in ui/builder_modes.py
+    String Simulator      simulation (core/simulator.py) with animated playback
+                          (ui/simulator_view.py, ui/animation.py)
+    NFA to DFA Converter  subset construction shown step by step
+
+Every automaton is drawn by ui/visualizer.py and tabulated by ui/automaton_view.py.
 """
 
 import streamlit as st
@@ -66,7 +72,7 @@ def render_header() -> None:
         <div class="ft-header">
             <div class="ft-title">{APP_NAME}</div>
             <div class="ft-subtitle">{SUBTITLE}</div>
-            <div class="ft-tagline">{TAGLINE.upper()}<span class="ft-badge">In development · 8 of 10 modules</span></div>
+            <div class="ft-tagline">{TAGLINE.upper()}<span class="ft-badge">In development · 9 of 10 modules</span></div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -615,7 +621,7 @@ def render_sidebar() -> None:
         st.markdown("#### Diagrams")
         render_layout_control()
         st.markdown("#### Status")
-        st.write("Module 08 of 10 complete: interactive, animated string simulation.")
+        st.write("Module 09 of 10 complete: integration testing and hardening.")
 
 
 def main() -> None:
