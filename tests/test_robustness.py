@@ -209,3 +209,15 @@ def test_app_uses_automatic_layout_by_default():
     assert "rankdir=TB" in app.get("graphviz_chart")[0].proto.spec
     app = generate_in_app(app, "ab")
     assert "rankdir=LR" in app.get("graphviz_chart")[0].proto.spec
+
+
+def test_release_configuration():
+    import tomllib
+
+    from core import __version__
+
+    config = tomllib.loads((ROOT / ".streamlit" / "config.toml").read_text(encoding="utf-8"))
+    assert config["client"]["showErrorDetails"] == "none"  # public deployments hide tracebacks
+    assert re.fullmatch(r"\d+\.\d+\.\d+", __version__)
+    app = run_app()
+    assert any(f"v{__version__}" in block.value for block in app.markdown)

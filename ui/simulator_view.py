@@ -206,8 +206,14 @@ def _render_saved_source(prefix: str, candidates, empty_message: str) -> None:
         st.session_state[outcome_key] = (signature(), result)
 
     # The dropdown keeps its value by key, so an empty first render leaves it at None even after
-    # automata appear, and a stale choice can linger. Select the first available one instead.
-    if labels and st.session_state.get(choice_key) not in labels:
+    # automata appear, and a stale choice can linger. When an automaton becomes available (for
+    # example one just built), select it; otherwise fall back to the first available one.
+    known_key = f"{prefix}_known_labels"
+    appeared = [label for label in labels if label not in st.session_state.get(known_key, [])]
+    st.session_state[known_key] = labels
+    if appeared:
+        st.session_state[choice_key] = appeared[-1]
+    elif labels and st.session_state.get(choice_key) not in labels:
         st.session_state[choice_key] = labels[0]
 
     with st.container(border=True):

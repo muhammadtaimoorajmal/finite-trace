@@ -7,3 +7,8 @@ textColor = "#e2e8f0"
 
 [browser]
 gatherUsageStats = false
+
+[client]
+# Public deployments show only a generic message for unexpected errors; full
+# tracebacks still go to the server console. Normal input errors are unaffected.
+showErrorDetails = "none"

@@ -266,10 +266,13 @@ def _render_frame(key: str, automaton: FiniteAutomaton, simulation: SimulationRe
         st.caption(step.explanation)
 
     if state.at_end:
+        verdict = "Accepted" if simulation.accepted else "Rejected"
+        reason = simulation.explanation.removeprefix(f"{verdict}: ")
+        message = f"**Final configuration: {verdict}.** {reason[:1].upper()}{reason[1:]}"
         if simulation.accepted:
-            st.success(f"**Final configuration: Accepted.** {simulation.explanation.removeprefix('Accepted: ')}", icon="✅")
+            st.success(message, icon="✅")
         else:
-            st.warning(f"**Final configuration: Rejected.** {simulation.explanation.removeprefix('Rejected: ')}", icon="❌")
+            st.warning(message, icon="❌")
 
 
 def render_animation(key: str, automaton: FiniteAutomaton, simulation: SimulationResult, run_id: int) -> None:

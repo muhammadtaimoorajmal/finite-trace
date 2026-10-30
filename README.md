@@ -1,625 +1,163 @@
+<p align="center">
+  <img src="docs/images/banner.png" alt="FiniteTrace: Visualize. Convert. Simulate." width="100%">
+</p>
+
+<p align="center">
+  <a href="https://github.com/muhammadtaimoorajmal/finite-trace/releases/tag/v1.0.0"><img src="https://img.shields.io/github/v/tag/muhammadtaimoorajmal/finite-trace?label=version&color=22d3ee" alt="Version"></a>
+  <a href="https://github.com/muhammadtaimoorajmal/finite-trace/actions/workflows/tests.yml"><img src="https://github.com/muhammadtaimoorajmal/finite-trace/actions/workflows/tests.yml/badge.svg" alt="Tests"></a>
+  <img src="https://img.shields.io/badge/python-3.11%20%7C%203.13-3776ab" alt="Python 3.11 | 3.13">
+  <img src="https://img.shields.io/badge/built%20with-Streamlit-ff4b4b" alt="Built with Streamlit">
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/muhammadtaimoorajmal/finite-trace" alt="MIT License"></a>
+</p>
+
 # FiniteTrace
 
 **Visualize. Convert. Simulate.**
 
-FiniteTrace is an open-source, interactive tool for building, visualizing, converting and simulating finite automata: Deterministic Finite Automata (DFA) and Nondeterministic Finite Automata (NFA), including ε-NFAs. It is written in plain Python with a Streamlit interface. All automata algorithms are implemented from scratch so the code doubles as a readable reference.
+FiniteTrace is an interactive tool for building, visualizing, converting and simulating finite automata: deterministic (DFA), nondeterministic (NFA) and ε-NFA. Turn a regular expression into an ε-NFA, convert it to a DFA step by step, and watch a string being processed on the state diagram. All automata algorithms are implemented from scratch in readable Python, with a Streamlit interface.
 
-> **Status:** in development. Modules 01–09 of 10 are complete. Automata can be built from regular expressions, structured language rules, exact strings or manual DFA/NFA definitions; every automaton is drawn as a state diagram; NFAs can be converted to DFAs; and test strings can be simulated and played back step by step on the diagram.
+![String Simulator replaying the run of aabb on the DFA for (a|b)*abb, ending in the accepting state D4](docs/images/simulation-accepted.png)
 
-## Objectives
+## What is FiniteTrace?
 
-- Make regular languages and finite automata easy to explore visually.
-- Show each algorithm step by step (ε-closures, subset construction, simulation traces) rather than only final answers.
-- Keep the codebase small, typed and understandable for people learning Python and automata theory.
+FiniteTrace takes a description of a regular language and builds the automaton for it. It then lets you inspect that automaton and test strings against it:
 
-## Technology stack
+- **Builds** DFAs and NFAs from a regular expression, a structured language rule, an exact string, or a definition you type in yourself.
+- **Supports ε-transitions** (moves that consume no input) throughout.
+- **Converts** any NFA into an equivalent DFA with subset construction, showing every ε-closure and `move` step.
+- **Draws** each automaton as a state diagram, with a matching transition table.
+- **Simulates** test strings, reports **Accepted** or **Rejected** with the reason, and replays each step on the diagram.
 
-| Purpose | Tool |
+## Key features
+
+| | |
 | --- | --- |
-| Language | Python 3.11+ (developed on 3.13) |
-| Web interface | [Streamlit](https://streamlit.io) |
-| Graph rendering | [Graphviz](https://graphviz.org) DOT, drawn in the browser by `st.graphviz_chart` (no system executable needed) |
-| Testing | pytest, Streamlit `AppTest` |
-| Automata algorithms | Implemented in this repository (no automata libraries) |
+| **Regular expressions → ε-NFA → DFA** | Formal regex parser with clear, positioned errors; Thompson's construction; subset construction with a full trace |
+| **Four input methods** | Regular expression, language rule (starts/ends with, contains, parity, exactly *k*…), exact string, manual DFA/NFA |
+| **State diagrams** | Initial arrow, double-circle accepting states, dashed ε-arrows, self-loops; automatic layout; DOT download |
+| **String simulation** | DFA and NFA (active-state sets with ε-closure), empty-string support, step-by-step trace |
+| **Interactive playback** | Play, pause, previous, next, reset, replay and speed; active states and used transitions highlighted |
+| **Correct by construction, verified by tests** | 700+ automated tests, including checks against independent oracles, and CI on Python 3.11 and 3.13 |
 
-## Features
+## Visual walkthrough
 
-- Parse regular expressions and build equivalent ε-NFAs (Thompson's construction).
-- Define languages through structured rules or as a single exact string.
-- Enter DFA/NFA transition definitions manually.
-- Convert NFAs to DFAs with subset construction, showing ε-closures and state subsets.
-- Generate state diagrams and transition tables.
-- Simulate test strings on DFAs and NFAs and replay each run on the diagram with play, pause, step, reset and replay controls.
-- Report whether a string is accepted or rejected.
-
-## Current implementation status
-
-### Implemented (Module 01)
-
-- Project structure and Streamlit application shell with branding and tabbed navigation.
-- Shared `FiniteAutomaton` data model (`core/automata.py`) usable for DFAs and NFAs, with epsilon transitions stored as `None`.
-- Structural validation with specific error messages (unknown states, invalid symbols, DFA nondeterminism, DFA epsilon moves, incomplete DFAs).
-- Unit tests for the data model and smoke tests for the app.
-
-### Implemented (Module 02)
-
-- Regular expression parser (`core/regex_parser.py`): tokenizer, syntax validation with positioned error messages, implicit-concatenation insertion, and Shunting-Yard conversion to postfix tokens.
-- Alphabet extraction (epsilon is never part of the alphabet).
-- **Validate & Parse** in the Automata Builder tab, showing the alphabet, explicit-concatenation form, postfix expression and a token table.
-
-### Implemented (Module 03)
-
-- Thompson's construction (`core/thompson.py`): any valid expression becomes an equivalent ε-NFA stored in the shared `FiniteAutomaton` model.
-- A step-by-step construction trace generated by the algorithm.
-- **Generate ε-NFA** in the Automata Builder, showing a summary, the full transition table and the construction steps.
-
-### Implemented (Module 04)
-
-- NFA-to-DFA conversion by subset construction (`core/converter.py`), with ε-closure, move, dead-state handling and a step-by-step trace.
-- **Generate DFA** in the Automata Builder and a working **NFA to DFA Converter** tab.
-
-### Implemented (Module 05)
-
-- Structured language rules (`core/language_builder.py`): starts with, ends with, contains, does not contain, does not end with, even/odd count of a symbol, and exactly *k* occurrences.
-- Exact-string automata, including the empty string.
-- Manual DFA and NFA/ε-NFA definitions with validation (`core/manual_builder.py`).
-- Conversion of a manually defined NFA in the NFA to DFA Converter.
-
-### Implemented (Module 06)
-
-- Production string simulator (`core/simulator.py`) for DFAs, NFAs and ε-NFAs, with step-by-step traces and accept/reject explanations.
-- A working **String Simulator** tab that can simulate a regular expression directly (as an ε-NFA or DFA), any current Automata Builder result, or any converted DFA.
-
-### Implemented (Module 07)
-
-- State diagrams (`ui/visualizer.py`) for every automaton in the Builder, Converter (source NFA and converted DFA) and String Simulator, with a DOT download.
-
-### Implemented (Module 08)
-
-- Interactive playback of simulations (`ui/animation.py`): play, pause, previous, next, reset, replay and speed control, with active states and used transitions highlighted on the diagram.
-
-### Implemented (Module 09)
-
-- Integration and robustness testing: end-to-end workflows through the interface, randomized equivalence tests against independent oracles, input-safety and limit checks, and a GitHub Actions workflow that runs the test suite on Python 3.11 and 3.13.
-- Fixes found by that testing, including an *Automatic* diagram layout that keeps larger diagrams readable.
-
-**Planned:** the release (Module 10).
-
-## Regular expression syntax
-
-FiniteTrace uses formal regular expressions, not the Python/PCRE regex dialect.
-
-| Feature | Syntax | Meaning |
-| --- | --- | --- |
-| Literal symbol | `a`, `Z`, `0`, `_` | Match that symbol (ASCII letters, digits, underscore) |
-| Union | `a\|b` | Either expression |
-| Concatenation | `ab` or `a.b` | `a` followed by `b` |
-| Kleene star | `a*` | Zero or more repetitions |
-| Kleene plus | `a+` | One or more repetitions |
-| Optional | `a?` | Zero or one occurrence |
-| Grouping | `(ab)` | Group an expression; groups may be nested |
-| Epsilon | `ε` or `λ` | The empty string |
-| Escape | `\|`, `\*`, `\+`, `\?`, `\(`, `\)`, `\.`, `\\` | The character itself as a literal symbol |
-
-**Precedence** (highest first): parentheses, then the postfix operators `*` `+` `?`, then concatenation, then union. Concatenation and union are left-associative. So `a|bc` means `a|(bc)`, `ab*` means `a(b*)`, and `(ab)*` repeats the whole sequence `ab`.
-
-**Implicit concatenation.** Writing two expressions side by side concatenates them. The parser inserts an explicit `.` wherever an operand (a symbol, `ε`, `)` or a postfix operator) is followed by the start of another operand (a symbol, `ε` or `(`): `(a|b)*abb` becomes `(a|b)*.a.b.b`. An unescaped `.` therefore always means concatenation, never "any character".
-
-**Epsilon.** `ε` and `λ` both denote the empty string and never appear in the alphabet. The letter `e` is an ordinary symbol. An empty input is an error; write `ε` for the empty-string language.
-
-**Escaping.** A backslash makes the reserved characters `| . * + ? ( ) \ [ ] { } ^ $` literal symbols, shown escaped in parser output (for example `a\|b` gives the postfix `a\|.b.`, which is different from `ab|`). Other escapes such as `\d` are rejected, as are escaped whitespace and `\ε` / `\λ`.
-
-**Whitespace** between tokens is ignored (`a | b` equals `a|b`). Whitespace cannot be an alphabet symbol.
-
-**Repeated postfix operators** such as `a**`, `a++` or `a+?` are rejected to avoid confusion with other regex dialects (`+?` is not a lazy quantifier here). Use parentheses for nested repetition: `(a*)*`, `(a+)?`.
-
-**Not supported:** character classes `[a-z]`, counted repetition `{2,4}`, anchors `^` `$`, wildcard `.`, backreferences, lookarounds and flags. These produce an error instead of being misinterpreted.
-
-**Maximum length:** 512 characters, including whitespace. Longer input is rejected, never truncated.
-
-**Error positions** count characters from 1, including whitespace.
-
-### Examples
-
-| Expression | Alphabet | Explicit concatenation | Postfix |
-| --- | --- | --- | --- |
-| `(a\|b)*abb` | {a, b} | `(a\|b)*.a.b.b` | `ab\|*a.b.b.` |
-| `(0\|1)*01` | {0, 1} | `(0\|1)*.0.1` | `01\|*0.1.` |
-| `a(b\|c)*` | {a, b, c} | `a.(b\|c)*` | `abc\|*.` |
-| `(ab)+` | {a, b} | `(a.b)+` | `ab.+` |
-| `(a\|ε)b` | {a, b} | `(a\|ε).b` | `aε\|b.` |
-
-| Invalid input | Error |
+| | |
 | --- | --- |
-| `a\|\|b` | Unexpected '\|' at position 3: it directly follows '\|' at position 2; an expression is required between them. |
-| `(ab` | Unmatched '(' at position 1: missing closing ')'. |
-| `[ab]` | Unsupported '[' at position 1: character classes are not supported. Use explicit union, such as (a\|b). |
-| `a**` | Unexpected '*' at position 3: repeated postfix operators such as '**' are not supported. Use parentheses, such as (a*)*. |
+| ![DFA for (a\|b)*abb generated in the Automata Builder](docs/images/automata-builder-dfa.png) | ![Thompson ε-NFA for (a\|b)*abb](docs/images/thompson-epsilon-nfa.png) |
+| **Automata Builder:** the 5-state DFA for `(a\|b)*abb`, with D4 accepting. | **Thompson's construction:** the 14-state ε-NFA, with ε-transitions dashed. |
+| ![Subset construction for (0\|1)*01 with the DFA-state mapping and converted DFA](docs/images/nfa-to-dfa-conversion.png) | ![Simulation of abab ending in the non-accepting state D3](docs/images/simulation-rejected.png) |
+| **NFA to DFA Converter:** every `move` and ε-closure step, and the resulting DFA. | **A rejected string:** `abab` ends in D3, which is not accepting. |
+| ![Manual ε-NFA with two ε-branches](docs/images/manual-epsilon-nfa.png) | ![Language rule: binary strings ending with 01](docs/images/language-rule-builder.png) |
+| **Manual input:** an ε-NFA typed as `source,symbol,destination` rows. | **Language rules:** "ends with `01`" as a 3-state DFA. |
 
-### Using Validate & Parse
+## Quick start
 
-1. Open the **Automata Builder** tab.
-2. Type an expression into **Regular expression** and press **Validate & Parse**.
-3. A valid expression shows its alphabet, explicit-concatenation form, postfix expression and a step-by-step token table. An invalid one shows an error with a marker under the offending character.
+Requires **Python 3.11 or newer**. No system Graphviz installation is needed; diagrams are drawn in the browser.
 
-In code, `parse_regex("(a|b)*abb")` returns a `ParsedRegex` whose `postfix` is a tuple of typed `Token` objects, which Thompson's construction consumes directly.
+**Windows**
 
-## ε-NFA construction (Thompson's algorithm)
-
-The parser's postfix tokens are read left to right with a stack of **fragments**. A fragment is a small NFA with one entry state and one exit state. Symbols push new fragments; operators pop their operands, combine them with ε-transitions and push the result:
-
-| Token | Construction | New states |
-| --- | --- | --- |
-| symbol `x` | `start --x--> end` | 2 |
-| `ε` | `start --ε--> end` | 2 |
-| `A.B` (concatenation) | `A.end --ε--> B.start` | 0 |
-| `A\|B` (union) | new start branches by ε to both fragments; both ends lead by ε to a new end | 2 |
-| `A*` | new start/end, ε to enter, ε to skip, ε loop from `A.end` back to `A.start` | 2 |
-| `A+` | like `A*` without the skip, so `A` must match at least once | 2 |
-| `A?` | like `A*` without the loop, so `A` matches at most once | 2 |
-
-When all tokens are processed exactly one fragment remains: its start is the NFA's initial state and its end is the single accepting state. The result is a `FiniteAutomaton` with `machine_type="NFA"` that passes structural validation.
-
-- **ε-transitions** are stored with the symbol `None` and shown as `ε`. ε is never part of the alphabet.
-- **State names** are `q0`, `q1`, `q2`, … in creation order. Every construction starts its own counter, so the same expression always produces the same NFA and separate constructions never share states.
-- **Limit:** construction stops with an error if more than 1,500 states would be needed. A valid expression within the 512-character limit needs at most about 1,024, so this is a safeguard rather than a practical restriction.
-
-### Example
-
-`(a|b)*abb` has the postfix form `ab|*a.b.b.` and produces an ε-NFA with 14 states (`q0`–`q13`), 16 transitions (11 of them ε), initial state `q6` and accepting state `q13`. The construction trace for `ab|c` is:
-
-| Step | Token | Operation | Result |
-| --- | --- | --- | --- |
-| 1 | `a` | Literal | New fragment q0 --a--> q1 |
-| 2 | `b` | Literal | New fragment q2 --b--> q3 |
-| 3 | `.` | Concatenation | Join q0…q1 then q2…q3 with ε from q1 to q2 |
-| 4 | `c` | Literal | New fragment q4 --c--> q5 |
-| 5 | `\|` | Union | New start q6 branches by ε to q0 and q4; q3 and q5 lead by ε to new end q7 |
-
-### Using Generate ε-NFA
-
-Type an expression in the Automata Builder and press **Generate ε-NFA** (no need to parse first). The app shows the state and transition counts, the alphabet, initial and accepting states, every transition (one row per arrow) and the construction steps. Invalid expressions show the parser's error instead.
-
-In code:
-
-```python
-from core.thompson import construct_nfa, regex_to_nfa
-from core.regex_parser import parse_regex
-
-nfa = regex_to_nfa("(a|b)*abb")                  # FiniteAutomaton
-result = construct_nfa(parse_regex("(a|b)*abb"))  # .automaton and .steps (the trace)
+```powershell
+git clone https://github.com/muhammadtaimoorajmal/finite-trace.git
+cd finite-trace
+python -m venv .venv
+.venv\Scripts\python.exe -m pip install -r requirements.txt
+.venv\Scripts\python.exe -m streamlit run app.py
 ```
 
-## NFA-to-DFA conversion (subset construction)
-
-An NFA can be in several states at once, may have no move for a symbol, and can take ε-moves without reading input. A DFA has exactly one next state for every state and symbol. Subset construction bridges the two: **each DFA state stands for the set of NFA states the NFA could be in**.
-
-Two operations do the work:
-
-- **ε-closure(S):** every state reachable from the states in S using only ε-transitions, including S itself. Computed iteratively with a worklist, so ε-cycles and long ε-chains are safe.
-- **move(S, x):** every state reachable from S by reading exactly one `x`. It never follows ε-transitions.
-
-The algorithm:
-
-1. `D0 = ε-closure({initial NFA state})`.
-2. Take the next unprocessed DFA state S (breadth-first). For each symbol x in sorted order, compute `ε-closure(move(S, x))`.
-3. If that subset has not been seen, name it `D1`, `D2`, … in discovery order and queue it; otherwise reuse its existing name.
-4. Repeat until no unprocessed states remain. Only reachable subsets ever become DFA states.
-
-**Accepting states.** A DFA state is accepting if its subset contains **at least one** accepting NFA state.
-
-**Dead state.** When `move` finds nothing, the result is the empty subset `∅`. It becomes a single, non-accepting dead state that loops to itself on every symbol, so the DFA is complete. It only appears if it is reachable, and an empty alphabet never creates one.
-
-**Not minimized.** The DFA recognizes exactly the same language as the NFA, but it may have more states than necessary. For example, `(a|b)*abb` gives 5 states.
-
-**Limit:** conversion stops with an error if more than 512 DFA states would be needed. Subset construction can require exponentially many states, for example `(a|b)*a(a|b)(a|b)(a|b)(a|b)(a|b)(a|b)(a|b)(a|b)(a|b)`. No partial DFA is ever returned.
-
-### Example
-
-The ε-NFA with `q0 --ε--> q1`, `q0 --ε--> q2`, `q1 --a--> q3`, `q2 --b--> q3`, initial state `q0` and accepting state `q3` converts as follows:
-
-| Step | From | Symbol | move | ε-closure | To |
-| --- | --- | --- | --- | --- | --- |
-| – | | | | `ε-closure({q0}) = {q0, q1, q2}` | D0 |
-| 1 | D0 | a | {q3} | {q3} | D1 (new) |
-| 2 | D0 | b | {q3} | {q3} | D1 |
-| 3 | D1 | a | ∅ | ∅ | D2 (new, dead) |
-| 4 | D1 | b | ∅ | ∅ | D2 |
-| 5 | D2 | a | ∅ | ∅ | D2 |
-| 6 | D2 | b | ∅ | ∅ | D2 |
-
-| DFA state | NFA states | a | b |
-| --- | --- | --- | --- |
-| → D0 | {q0, q1, q2} | D1 | D1 |
-| ★ D1 | {q3} | D2 | D2 |
-| D2 | ∅ (dead) | D2 | D2 |
-
-The DFA accepts exactly `a` and `b`.
-
-### Using the app
-
-- **Automata Builder → Generate DFA** runs the whole pipeline (parse, Thompson's construction, subset construction) on the current expression and shows a summary, the DFA-state-to-NFA-subset mapping and the transition table.
-- **NFA to DFA Converter** has its own input. **Convert NFA to DFA** shows (A) the source ε-NFA, (B) the initial ε-closure, the state mapping and every `move` / `ε-closure` calculation, and (C) the resulting DFA. To convert a manually defined NFA instead, use the converter's **From Manual NFA** tab (see *Converting a manual NFA*).
-
-### In code
-
-```python
-from core.converter import convert_nfa_to_dfa, epsilon_closure, move, regex_to_dfa
-from core.thompson import regex_to_nfa
-
-result = convert_nfa_to_dfa(regex_to_nfa("(0|1)*01"))
-result.dfa            # FiniteAutomaton with machine_type="DFA"
-result.state_mapping  # {"D0": frozenset({...}), ...}
-result.steps          # ConversionStep records: subset, symbol, move, ε-closure, destination
-result.dead_state     # name of the ∅ state, or None
-
-dfa = regex_to_dfa("(a|b)*abb")  # shortcut: regex -> ε-NFA -> DFA
-```
-
-`convert_nfa_to_dfa` accepts any valid `FiniteAutomaton` (NFA or DFA), not only ones built from regular expressions.
-
-## Language rules, exact strings and manual automata
-
-The Automata Builder has four input modes, shown as tabs: **Regular Expression**, **Language Rule**, **Exact String** and **Manual Automaton**. Each mode keeps its own inputs and result. A result is only shown while the inputs that produced it are unchanged.
-
-**Alphabets** are entered as comma-separated single characters, such as `a,b` or `0, 1`. Spaces around symbols are ignored. Symbols cannot be whitespace, `,`, `ε` or `λ`, and at most 20 are allowed.
-
-### Language rules
-
-Language rules are **structured choices**, not free-form English. "Binary strings that end with 01" is entered as alphabet `0,1`, rule *Ends with*, pattern `01`. Each rule is built by a general algorithm from its parameters, and the result is a complete DFA with states `q0, q1, …`:
-
-| Rule | Parameters | Construction |
-| --- | --- | --- |
-| Starts with | pattern | A chain of states counts how much of the prefix has matched. A wrong symbol goes to a dead state, and the final state loops on every symbol. |
-| Ends with | pattern | Pattern-matching states (below). Accepting only while the input currently ends with the pattern. |
-| Contains substring | pattern | The same states, but the full-match state is absorbing. |
-| Does not contain substring | pattern | Complement of *contains*: accepting and non-accepting states are swapped. |
-| Does not end with | pattern | Complement of *ends with*. |
-| Even / odd number of a symbol | symbol | Two parity states. The chosen symbol toggles parity; other symbols leave it unchanged. |
-| Exactly *k* occurrences | symbol, *k* (0–100) | States count occurrences 0…*k*, plus one overflow state for more than *k*. |
-
-**Pattern-matching states.** State *i* means "the last *i* symbols read are the first *i* symbols of the pattern". After reading *x*, the next state is the length of the longest prefix of the pattern that is a suffix of `pattern[:i] + x`. This is the idea behind the Knuth–Morris–Pratt automaton. It handles overlapping patterns correctly, so *contains* `aba` accepts `ababa`. Patterns may be up to 50 characters.
-
-**Complements** are only taken of complete DFAs. Every string ends in exactly one state of a complete DFA, so swapping acceptance gives exactly the complement language.
-
-The table in the app has a *Meaning* column explaining each state, such as "matched 'ab'". A state that can never be reached is left out; for example, *starts with* `aa` over `{a}` needs no dead state.
-
-### Exact strings
-
-*Exact String* builds a DFA accepting one string and nothing else: a chain of states, one per character, then a dead state for anything extra or different. The string is taken **literally**. With `|` in the alphabet, `a|b` is the three characters `a`, `|`, `b`, not a choice. Leaving the string empty builds the automaton that accepts only ε. Strings may be up to 100 characters.
-
-| Mode | Input | Accepts |
-| --- | --- | --- |
-| Exact string | `aabb` | only `aabb` |
-| Regular expression | `(a\|b)*aabb` | every string ending in `aabb` |
-
-### DFA or NFA output
-
-Language rules and exact strings can be shown as a **DFA** or an **NFA**. Every DFA is also an NFA, one whose transitions each have exactly one destination and no ε-moves, so the NFA output is the same machine labelled as an NFA. It is a separate copy, not the original object. It is not a Thompson ε-NFA; use the Regular Expression mode for that.
-
-### Manual DFA / NFA definitions
-
-| Field | Example | Notes |
-| --- | --- | --- |
-| Machine type | `DFA` or `NFA` | |
-| Alphabet | `0,1` | |
-| States | `q0,q1` | letters, digits, `_ . - '`; no spaces; at most 40 characters each, 150 states |
-| Initial state | `q0` | must be one of the states |
-| Accepting states | `q0` | may be empty (the automaton accepts nothing) |
-| Transitions | one `source,symbol,destination` per line | at most 2,000 lines |
-
-Example DFA (binary strings with an even number of `0`s):
-
-```text
-q0,0,q1
-q0,1,q0
-q1,0,q0
-q1,1,q1
-```
-
-Example ε-NFA (accepts exactly `a` or `b`; alphabet `a,b`, states `q0,q1,q2,q3`, initial `q0`, accepting `q3`):
-
-```text
-q0,ε,q1
-q0,ε,q2
-q1,a,q3
-q2,b,q3
-```
-
-**Rules:**
-
-- Use `ε` (or `λ`) as the symbol for an epsilon transition. It is stored internally as `None`, and the letter `e` is always an ordinary symbol.
-- Repeating a source and symbol with a different destination makes an NFA nondeterministic, so `q0,a,q1` and `q0,a,q2` together give δ(q0, a) = {q1, q2}.
-- Identical lines are merged. Blank lines and lines starting with `#` are ignored.
-- A **DFA** must be complete and deterministic. It cannot use ε, conflicting destinations are reported with both line numbers, and every missing (state, symbol) pair is listed. FiniteTrace never adds a dead state silently.
-- An **NFA** may have missing transitions, several destinations, ε-moves, ε-cycles and any number of accepting states.
-
-Errors name the field or transition line, for example:
-
-```text
-Transitions line 2: a DFA allows one destination per state and symbol, but (q0, 0) already goes to 'q1' on line 1.
-Incomplete DFA: missing transition for state 'q1' on symbol '1'.
-Transitions line 1: symbol '2' is not in the alphabet.
-```
-
-The **Example** selector in the format help fills the form with a sample DFA or NFA. You can replace it with any automaton.
-
-### Converting a manual NFA
-
-1. In **Manual Automaton**, choose NFA, enter the definition and press **Validate & Build**.
-2. In **NFA to DFA Converter**, open **From Manual NFA** and press **Convert NFA to DFA**.
-
-The same subset-construction engine is used, with any state names. If the manual inputs change after building, the converter asks you to build again instead of using the old automaton. A manual DFA is already deterministic, so it is not offered for conversion.
-
-### In code
-
-```python
-from core.language_builder import ENDS_WITH, as_nfa, build_exact_string_dfa, build_language_dfa
-from core.manual_builder import parse_and_build, build_manual_automaton
-from core.converter import convert_nfa_to_dfa
-
-dfa = build_language_dfa(ENDS_WITH, {"0", "1"}, pattern="01")
-nfa_view = as_nfa(dfa)
-exact = build_exact_string_dfa("aabb", {"a", "b"})
-nfa = build_manual_automaton("NFA", {"q0", "q1"}, {"a"}, "q0", {"q1"}, [("q0", "a", "q1"), ("q0", None, "q1")])
-dfa_from_manual = convert_nfa_to_dfa(nfa).dfa
-```
-
-## String simulation
-
-`simulate(automaton, text)` runs a test string on any `FiniteAutomaton`, whatever produced it: a regular expression, language rule, exact string, manual definition or conversion.
-
-**How it works.** The simulator keeps a **set of active states**:
-
-1. **Step 0:** `active = ε-closure({initial state})`. No input is consumed.
-2. For each character `x`, left to right: `active = ε-closure(move(active, x))`.
-3. After the whole input: **accepted** if `active` contains at least one accepting state, otherwise **rejected**.
-
-- **DFA:** the DFA must be complete, so the active set always holds exactly one state, its current state, and each step follows its single transition.
-- **NFA:** the set holds every state some path could be in, so all paths are followed at once without listing them. If no active state has a move for a character, the set becomes empty and the string is rejected. Later characters are still recorded with no active states, so the trace always covers the whole input.
-- **ε-transitions** never consume input. They are followed during ε-closure, which reuses the converter's `epsilon_closure` and is safe on ε-cycles.
-- **Empty string:** leave the test string empty. It is accepted exactly when the starting active set contains an accepting state. For example, `a*` accepts it, `a+` rejects it, and `ε` accepts it.
-
-**Input checking.** Test strings are read literally: no trimming, case-sensitive, with punctuation and digits as ordinary symbols. Every character must be in the automaton's alphabet. Otherwise the simulator reports an *invalid test string* rather than a rejection, for example:
-
-```text
-Invalid test string: symbol 'c' at position 3 is not in the alphabet {a, b}.
-```
-
-Positions count from 1. A typed `ε` is an ordinary character, not the empty string. Test strings may be up to 1,000 characters; the automaton itself is validated first, and an incomplete DFA is reported, never repaired.
-
-**Trace.** `SimulationResult.steps` holds one `SimulationStep` per configuration:
-
-| Field | Meaning |
-| --- | --- |
-| `index`, `position`, `symbol` | step number, 1-based input position and character read (`None` for step 0) |
-| `active_before` | active states before reading the character |
-| `symbol_edges` | transitions followed on that character, as `(source, symbol, destination)` |
-| `moved_to` | `move(active_before, symbol)` |
-| `epsilon_edges` | ε-transitions inside the closure, as `(source, None, destination)` |
-| `active_after` | the active states after ε-closure |
-| `explanation` | a one-line summary |
-
-The String Simulator's playback (below) draws each of these records as one frame.
-
-### Example
-
-`(a|b)*abb` converted to a DFA, on `aabb`:
-
-| Step | Read | From | To |
-| --- | --- | --- | --- |
-| 0 | Start | — | D0 |
-| 1 | a | D0 | D1 |
-| 2 | a | D1 | D1 |
-| 3 | b | D1 | D3 |
-| 4 | b | D3 | D4 |
-
-**Accepted:** the entire input was consumed and the final state D4 is accepting. On `abab` the same DFA visits D0, D1, D3, D1, D3 and ends in D3, which is not accepting, so the string is **rejected**.
-
-### Using the String Simulator
-
-The tab has three sources, each with its own test string and **Simulate String** button:
-
-- **Regular Expression:** type an expression, choose **NFA** (Thompson's ε-NFA) or **DFA** (converted by subset construction), and simulate. No need to visit the Builder first.
-- **Builder Automaton:** any current Automata Builder result, such as a regex ε-NFA or DFA, a language rule, an exact string or a manual DFA/NFA.
-- **Converted DFA:** any current result from the NFA to DFA Converter.
-
-The result shows **Accepted** or **Rejected** with an explanation, a summary, and a step-by-step trace table. DFAs show *From → To*; NFAs show active sets, `move`, the ε-transitions used, and the ε-closure.
-
-Results are tied to the inputs that produced them. Editing the test string, the machine type, the selected automaton or the automaton's definition hides the old verdict. A Builder or Converter result whose inputs were edited afterwards is no longer offered.
-
-### In code
-
-```python
-from core.thompson import regex_to_nfa
-from core.simulator import accepts, simulate
-
-automaton = regex_to_nfa("(a|b)*abb")
-result = simulate(automaton, "aabb")
-
-print(result.accepted)       # True
-print(result.explanation)    # Accepted: ... contains accepting state q13.
-print(accepts(automaton, "abab"))  # False (same engine)
-```
-
-## State diagrams
-
-Every generated or entered automaton is drawn as a state diagram, built from the automaton's own data:
-
-| Notation | Meaning |
-| --- | --- |
-| circle | a state |
-| double circle | an accepting state |
-| arrow from a small dot | the initial state (a state can be both initial and accepting) |
-| arrow labelled `a` | a transition on `a`; an NFA may have several arrows with the same label from one state |
-| dashed arrow labelled `ε` | an ε-transition, which moves without reading input |
-| arrow back to the same state | a self-loop |
-
-Every transition `(source, symbol, destination)` is drawn as its own arrow, including the dead state's self-loops in a complete DFA. Nothing is merged, added or left out. Missing NFA transitions stay missing, and no dead state is added to an NFA. Colours only reinforce the notation (cyan initial state, green accepting states, purple ε-arrows); shapes and labels carry the meaning.
-
-**Where diagrams appear:**
-
-- **Automata Builder:** with every generated ε-NFA, DFA, language-rule, exact-string and manual automaton.
-- **NFA to DFA Converter:** the source NFA in section A and the converted DFA in section C. DFA states are drawn by their short names (`D0`, `D1`, …); the NFA subsets they stand for are in the mapping table in section B.
-- **String Simulator:** the diagram of the simulated automaton, animated step by step (see *Interactive simulation & animation*).
-
-**Layout and size.** Graphviz's `dot` layout arranges the states. The sidebar's *Diagram layout* setting defaults to **Automatic**: automata with up to 15 states are drawn left to right, and larger ones top to bottom. Wide left-to-right diagrams are shrunk to the page width until their labels become unreadable, while top-to-bottom ones keep their natural size and scroll. You can also choose *Left to right* or *Top to bottom* yourself. Diagrams are drawn for automata with up to 80 states and 250 transitions. Larger automata show a notice instead of a partial picture, and their full transition table and complete DOT source remain available.
-
-**DOT download.** Every diagram has a **Download DOT** button with the complete Graphviz source (`finite-trace-dfa.dot` / `finite-trace-nfa.dot`). Open it in any Graphviz tool to render it as SVG, PNG or PDF. FiniteTrace itself does not export images.
-
-**Accessibility.** Each diagram has a text description as alt text, for example *"DFA state diagram with 5 states, initial state D0, accepting states D4, and 10 transitions over a, b."* The transition table next to it is a complete textual alternative.
-
-**Safety.** States are given internal node ids (`s0`, `s1`, … in sorted order) and names and symbols are escaped labels, so state names such as `state-final` or `x'y` and symbols such as `"`, `\` or `|` cannot change the diagram's structure. The DOT is generated deterministically: the same automaton always gives the same source.
-
-```python
-from core.converter import regex_to_dfa
-from ui.visualizer import automaton_to_dot
-
-dot = automaton_to_dot(regex_to_dfa("(a|b)*abb"))  # DOT source string, no Graphviz executable needed
-```
-
-## Interactive simulation & animation
-
-After **Simulate String**, the String Simulator shows an *Interactive simulation* panel that replays the run on the automaton's diagram. The animation is a view of the trace the simulator already computed. It does not simulate anything itself, so it always agrees with the verdict.
-
-**Frames.** Each `SimulationStep` is one frame. **Step 0** is the starting configuration: no input is consumed, and for an NFA it is the ε-closure of the initial state. Frame *i* has read *i* characters, so a string of length *n* has *n + 1* frames. The ε-transitions taken after a character belong to that character's frame; they are never counted as consumed input. The empty string has a single frame, which is also the last one.
-
-**What is highlighted (in amber, with a thicker outline and filled states):**
-
-- **Active states:** the one current state of a DFA, or *every* active state of an NFA. No branch is picked out.
-- **Transitions just used:** the symbol transitions followed (`symbol_edges`) and the ε-transitions used for the closure (`epsilon_edges`, still dashed).
-- Highlighting only restyles existing states and arrows. Layout, names, double circles and the initial arrow never change, so the diagram doesn't jump between frames. If an NFA's active set becomes empty, nothing is highlighted, and the remaining characters are still stepped through.
-
-Next to the diagram the panel shows **Step i of n** with a status (*Ready*, *Playing*, *Paused*, *Completed*), a progress bar of characters consumed, and the input string with the character just read highlighted. It also shows the character being read, the active states before and after, the transitions used, and the step's explanation from the trace. On the last frame it repeats the final verdict (Accepted or Rejected) with its reason.
-
-**Controls:**
-
-| Control | Effect |
-| --- | --- |
-| ▶ Play | advance automatically from the current step; stops by itself on the last step |
-| ⏸ Pause | stop on the current step; Play resumes from there |
-| ⏮ Previous / ⏭ Next | move exactly one step (and pause) |
-| ↺ Reset | back to step 0, stopped |
-| ⟳ Replay | back to step 0 and play |
-| Playback speed | Slow (2 s), Normal (1 s), Fast (0.5 s) or Very fast (0.25 s) per step |
-
-Changing the speed keeps the current step and restarts the step timer. Each step waits at least the chosen interval, measured with a monotonic clock, and a late update never skips a step. Timing depends on the browser, so a step can take up to about a quarter-interval longer. In testing, Normal produced roughly 1.0–1.3 s per step.
-
-**How it runs.** Playback uses Streamlit's `st.fragment(run_every=...)`: only the panel reruns on a timer, about four times per step, and only while playing. Pausing, finishing or changing speed recreates the panel with the right timer. Nothing reruns while idle, and there are no sleep loops or background threads. The automaton and trace are computed once by **Simulate String**; playback only redraws the current frame.
-
-**Staleness.** Every simulation gets a new run id. Pressing **Simulate String** again, even with the same inputs, starts at step 0. Editing the test string, expression, machine type or chosen automaton stops playback and hides the old result. Each browser session has its own playback and speed.
-
-**Large automata.** Above the diagram limit (80 states or 250 transitions), the panel still steps through the run, showing the step, the active states, the input progress and the explanation. It explains that the diagram cannot be drawn for highlighting. The verdict is unaffected.
-
-## Installation
-
-Requirements: Python 3.11 or newer, and Git.
+**macOS / Linux**
 
 ```bash
 git clone https://github.com/muhammadtaimoorajmal/finite-trace.git
 cd finite-trace
-python -m venv .venv
-```
-
-Install dependencies using the virtual environment's interpreter:
-
-```bash
-# Windows
-.venv\Scripts\python.exe -m pip install -r requirements.txt
-
-# macOS / Linux
+python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
-```
-
-### Graphviz (optional)
-
-Diagrams in the app need **no** system installation: FiniteTrace generates DOT source in Python, and Streamlit's `st.graphviz_chart` lays it out in the browser. The Graphviz `dot` executable is only needed if you want to render a downloaded `.dot` file yourself, or to run the one optional test that renders diagrams on the server (it is skipped when `dot` is missing). To install it:
-
-- **Windows:** `winget install --id Graphviz.Graphviz -e` (or the installer from graphviz.org), then make sure `C:\Program Files\Graphviz\bin` is on your `PATH`.
-- **macOS:** `brew install graphviz`
-- **Debian/Ubuntu:** `sudo apt install graphviz`
-
-Check with `dot -V`.
-
-## Running the app
-
-```bash
-# Windows
-.venv\Scripts\python.exe -m streamlit run app.py
-
-# macOS / Linux
 .venv/bin/python -m streamlit run app.py
 ```
 
-Then open <http://localhost:8501>.
+Then open http://localhost:8501.
 
-## Running the tests
+## Supported inputs
+
+| Input | Example | Notes |
+| --- | --- | --- |
+| **Regular expression** | `(a\|b)*abb`, `(0\|1)*01`, `(a\|ε)b`, `a\|b` | Union `\|`, concatenation (implicit or `.`), `*`, `+`, `?`, parentheses, `ε`/`λ`, `\` to escape an operator |
+| **Language rule** | alphabet `0,1`, *Ends with* `01` | Starts with, ends with, contains, does not contain, does not end with, even/odd number of a symbol, exactly *k* occurrences |
+| **Exact string** | alphabet `a,b`, string `aabb` | Accepts exactly that string, taken literally; empty = only ε |
+| **Manual automaton** | `q0,ε,q1` one row per transition | DFA (must be complete) or NFA/ε-NFA, with any valid state names |
+
+The full syntax and input formats are in the [User Guide](docs/USER_GUIDE.md).
+
+## Usage examples
+
+| Try this | You will see |
+| --- | --- |
+| Builder → `(a\|b)*abb` → **Generate DFA** | A 5-state DFA (D0–D4) with D4 accepting |
+| Simulator → `(a\|b)*abb`, DFA, `aabb` → **Simulate String** → **▶ Play** | **Accepted**, playing D0 → D1 → D1 → D3 → D4 |
+| Simulator → same, test string `abab` | **Rejected**: ends in D3 |
+| Simulator → `a*` with an empty test string | **Accepted** (`a+` would be rejected) |
+| Converter → `(0\|1)*01` → **Convert NFA to DFA** | A 12-state ε-NFA becomes a 4-state DFA, with every step shown |
+
+FiniteTrace can also be used from Python:
+
+```python
+from core.converter import regex_to_dfa
+from core.simulator import simulate
+
+dfa = regex_to_dfa("(a|b)*abb")
+result = simulate(dfa, "aabb")
+print(result.accepted, result.explanation)
+```
+
+## Architecture
+
+```text
+input → regex_parser → thompson ─┐
+       language_builder ─────────┼→ FiniteAutomaton → converter → simulator → playback
+       manual_builder ───────────┘          └→ visualizer (diagram) / tables
+```
+
+All algorithms live in `core/` (plain Python, no UI code); the Streamlit interface is in `ui/` and `app.py`. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the design, and [docs/CODE_WALKTHROUGH.md](docs/CODE_WALKTHROUGH.md) for a beginner-friendly tour of the code with 30 questions and answers.
+
+## Testing
 
 ```bash
 # Windows
 .venv\Scripts\python.exe -m pytest
-
 # macOS / Linux
 .venv/bin/python -m pytest
 ```
 
-The suite covers the algorithms, randomized equivalence checks against independent oracles, and the Streamlit interface (through `streamlit.testing.v1.AppTest`). One optional test renders diagrams with the Graphviz `dot` executable and is skipped when it is not installed. GitHub Actions (`.github/workflows/tests.yml`) runs the suite on Python 3.11 and 3.13 for every push and pull request to `main`.
+The suite covers each algorithm, checks NFAs and DFAs against independent oracles on every short string (plain Python language descriptions, Python's `re`, and a brute-force NFA search), and drives the real interface through Streamlit's `AppTest`. One optional test needs the Graphviz `dot` executable and is skipped without it. [GitHub Actions](https://github.com/muhammadtaimoorajmal/finite-trace/actions/workflows/tests.yml) runs the suite on Python 3.11 and 3.13 for every push and pull request.
 
-## Project structure
+## Limitations
 
-```text
-finite-trace/
-├── app.py                 # Streamlit entry point
-├── core/
-│   ├── automata.py        # Shared DFA/NFA data model and validation
-│   ├── regex_parser.py    # Regular expression parser
-│   ├── thompson.py        # Thompson's ε-NFA construction
-│   ├── converter.py       # NFA-to-DFA subset construction
-│   ├── language_builder.py # Language rules and exact strings -> DFAs
-│   ├── manual_builder.py  # Manual DFA/NFA definitions
-│   └── simulator.py       # DFA/NFA string simulation with traces
-├── ui/
-│   ├── animation.py       # Playback controller and interactive simulation panel
-│   ├── automaton_view.py  # Shared automaton summary and transition tables
-│   ├── builder_modes.py   # Language rule, exact string and manual input forms
-│   ├── simulator_view.py  # String Simulator tab
-│   └── visualizer.py      # State diagrams (DOT generation and display)
-├── tests/
-│   ├── test_automata.py   # Data model tests
-│   ├── test_regex_parser.py # Parser tests
-│   ├── test_thompson.py   # NFA construction and language tests
-│   ├── test_converter.py  # Subset construction and NFA/DFA equivalence tests
-│   ├── test_language_builder.py # Language-rule and exact-string tests
-│   ├── test_manual_builder.py   # Manual DFA/NFA tests
-│   ├── test_app_modes.py  # Streamlit tests for the input modes
-│   ├── test_simulator.py  # Simulator, trace and equivalence tests
-│   ├── test_simulator_app.py # Streamlit tests for the String Simulator
-│   ├── test_visualizer.py # Diagram and table consistency tests
-│   ├── test_visualizer_app.py # Streamlit tests for diagrams
-│   ├── test_animation.py  # Playback controller and highlighting tests
-│   ├── test_animation_app.py # Streamlit tests for playback
-│   └── test_app.py        # Streamlit smoke tests
-├── .streamlit/config.toml # Theme configuration
-├── requirements.txt
-├── LICENSE
-└── README.md
-```
+- **Formal regular expressions only.** No character classes (`[a-z]`), counted repetition (`{2,4}`), anchors, wildcard `.`, backreferences or lookarounds; these are reported as errors rather than misinterpreted.
+- **Structured language rules, not free-form English.** The supported rules are listed above.
+- **Finite automata only.** No pushdown automata or Turing machines.
+- **No DFA minimization.** Subset construction produces an equivalent DFA, which can have more states than necessary.
+- **Size limits:**
 
-## Roadmap
+  | Limit | Value |
+  | --- | --- |
+  | Regular expression length | 512 characters |
+  | ε-NFA states | 1,500 |
+  | DFA states from subset construction | 512 |
+  | Test string length | 1,000 characters |
+  | Diagram size | 80 states / 250 transitions; larger automata keep their tables, trace and DOT download |
+  | Automatic layout | left to right up to 15 states, top to bottom above |
+  | Manual input | 150 states, 20 alphabet symbols, 2,000 transition lines, 40-character state names |
+  | Language rules | patterns up to 50 characters, exact strings up to 100, counts *k* up to 100 |
 
-| Module | Focus | Status |
-| --- | --- | --- |
-| 01 | Project foundation & architecture | Complete |
-| 02 | Regular expression parser | Complete |
-| 03 | Dynamic NFA construction | Complete |
-| 04 | NFA-to-DFA conversion | Complete |
-| 05 | Language rules & manual input | Complete |
-| 06 | DFA & NFA simulation engine | Complete |
-| 07 | State diagrams & transition tables | Complete |
-| 08 | Interactive interface & animation | Complete |
-| 09 | Integration, robustness & testing | Complete |
-| 10 | Release, documentation & final verification | Planned |
+- **Graphviz `dot` is optional.** It is only needed to render a downloaded `.dot` file outside FiniteTrace.
+
+## Contributing
+
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, tests and guidelines, and [docs/DEMO_GUIDE.md](docs/DEMO_GUIDE.md) for a guided demonstration of every feature.
 
 ## License
 
 Released under the [MIT License](LICENSE).
+
+## Release
+
+The current release is **v1.0.0**; see [CHANGELOG.md](CHANGELOG.md) and the [v1.0.0 tag](https://github.com/muhammadtaimoorajmal/finite-trace/releases/tag/v1.0.0).

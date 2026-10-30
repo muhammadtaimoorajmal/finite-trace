@@ -19,6 +19,7 @@ Every automaton is drawn by ui/visualizer.py and tabulated by ui/automaton_view.
 
 import streamlit as st
 
+from core import __version__
 from core.automata import FiniteAutomaton, display_symbol, state_sort_key
 from core.converter import ConversionError, ConversionResult, convert_nfa_to_dfa, format_subset
 from core.regex_parser import (
@@ -72,7 +73,7 @@ def render_header() -> None:
         <div class="ft-header">
             <div class="ft-title">{APP_NAME}</div>
             <div class="ft-subtitle">{SUBTITLE}</div>
-            <div class="ft-tagline">{TAGLINE.upper()}<span class="ft-badge">In development · 9 of 10 modules</span></div>
+            <div class="ft-tagline">{TAGLINE.upper()}<span class="ft-badge">v{__version__}</span></div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -621,7 +622,7 @@ def render_sidebar() -> None:
         st.markdown("#### Diagrams")
         render_layout_control()
         st.markdown("#### Status")
-        st.write("Module 09 of 10 complete: integration testing and hardening.")
+        st.write(f"Version {__version__} · open source under the MIT License.")
 
 
 def main() -> None:

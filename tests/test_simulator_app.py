@@ -198,3 +198,21 @@ def test_saved_source_selects_automaton_that_appears_later():
     app.button(key="sim_builder_button").click()
     app.run()
     assert verdicts(app)[0]
+
+
+def test_newly_built_automaton_is_selected_automatically():
+    # A Builder result that appears after others is selected, so "build, then simulate"
+    # works without opening the dropdown.
+    app = set_manual(run_app(), EVEN_ZEROS)
+    assert app.selectbox(key="sim_builder_choice").value.startswith("Manual Automaton")
+    app = generate_rule(app, "0,1", "Ends with", pattern="01")
+    assert app.selectbox(key="sim_builder_choice").value.startswith("Language Rule")
+    app.text_input(key="sim_builder_text").input("101")
+    app.button(key="sim_builder_button").click()
+    app.run()
+    assert verdicts(app)[0]
+    # An explicit choice is kept while the available automata do not change.
+    manual = [o for o in app.selectbox(key="sim_builder_choice").options if o.startswith("Manual")][0]
+    app.selectbox(key="sim_builder_choice").select(manual).run()
+    app.text_input(key="sim_builder_text").input("00").run()
+    assert app.selectbox(key="sim_builder_choice").value == manual

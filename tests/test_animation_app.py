@@ -196,3 +196,12 @@ def test_large_automaton_plays_without_a_diagram():
     app = press(app, "next")
     assert frame(app) == (2, 2, "Completed")
     assert verdicts(app)[0]
+
+
+def test_final_configuration_message_is_a_proper_sentence():
+    app = simulate_regex(run_app(), "(a|b)*abb", "DFA", "ab")
+    app = press(app, "next")
+    app = press(app, "next")
+    (final,) = [w.value for w in app.warning if "Final configuration" in w.value]
+    assert final == ("**Final configuration: Rejected.** The entire input was consumed, "
+                     "but the final state D3 is not accepting.")
