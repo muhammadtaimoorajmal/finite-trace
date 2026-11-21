@@ -6,10 +6,10 @@ During an animation the current states glow yellow and the arrows just used turn
 GREEN, BLUE, WHITE, YELLOW, LINE = "#22c55e", "#60a5fa", "#ffffff", "#facc15", "#94a3b8"
 
 
-def to_dot(machine, active=(), used=(), hide=()):
+def to_dot(machine, active=(), used=(), hide=(), path=()):
     """active: states to highlight. used: (src, symbol, dst) moves to highlight.
     hide: states not drawn (the trap state qT; every missing arrow goes there).
-    A hidden state still appears while it is active, with only the move just used."""
+    path: moves taken so far; a hidden state reached by the run is drawn with these moves."""
     out = [
         "digraph {",
         '  rankdir=LR; bgcolor="transparent"; nodesep=0.35; ranksep=0.5;',
@@ -34,7 +34,8 @@ def to_dot(machine, active=(), used=(), hide=()):
     # One arrow per (src, dst) pair, labelled with all its symbols, e.g. "a, b".
     arrows = {}
     for src, symbol, dst in machine.edges():
-        if (src not in hide and dst not in hide) or (src, symbol, dst) in used:
+        move = (src, symbol, dst)
+        if (src not in hide and dst not in hide) or move in used or move in path:
             arrows.setdefault((src, dst), []).append(symbol)
     for (src, dst), symbols in arrows.items():
         attrs = [f'label=" {", ".join(symbols)} "']

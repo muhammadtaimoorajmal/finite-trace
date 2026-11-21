@@ -93,6 +93,11 @@ def test_trap_state_can_be_hidden_in_the_diagram():
     # once reached, qT is drawn with only the move actually used (d), not "a, d"
     dot = to_dot(DFA, active={"qT"}, used={("q6", "d", "qT")}, hide={"qT"})
     assert '"q6" -> "qT" [label=" d "' in dot and '"q1" -> "qT"' not in dot
+    # "ccadbbd": the move into qT (q4 -a-> qT) stays visible while the run loops in qT
+    path = {("q0", "c", "q3"), ("q3", "c", "q4"), ("q4", "a", "qT"), ("qT", "d", "qT"), ("qT", "b", "qT")}
+    dot = to_dot(DFA, active={"qT"}, used={("qT", "d", "qT")}, hide={"qT"}, path=path)
+    assert '"q4" -> "qT" [label=" a "' in dot and '"qT" -> "qT" [label=" b, d "' in dot
+    assert not accepts(DFA, "ccadbbd") and not accepts(NFA, "ccadbbd")
 
 
 # ---------- simulation trace

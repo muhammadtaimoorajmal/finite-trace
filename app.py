@@ -92,9 +92,11 @@ def animate_string(machine, name, word, hide=()):
                        for j, ch in enumerate(word)) or "<span>ε</span>"
         st.markdown(f'<div class="tape">{tape}</div>', unsafe_allow_html=True)
         st.caption(f"Step {i} of {len(word)}" + (" · finished" if i == len(word) else " · yellow box = next symbol"))
-        symbol = word[i - 1] if i else ""
-        used = {(p, symbol, q) for p in history[i - 1] for q in machine.next(p, symbol)} if i else set()
-        st.graphviz_chart(to_dot(machine, history[i], used, hide), width="content")
+        # every move taken so far (path), and the moves of the last symbol (used, highlighted)
+        moves = [{(p, x, q) for p in history[j] for q in machine.next(p, x)} for j, x in enumerate(word[:i])]
+        used = moves[-1] if moves else set()
+        path = set().union(*moves)
+        st.graphviz_chart(to_dot(machine, history[i], used, hide, path), width="content")
         log, verdict = st.columns([3, 2])
         log.code("\n".join(lines[: i + 1] + (lines[-1:] if i == len(word) else [])), language=None)
         if i == len(word):
