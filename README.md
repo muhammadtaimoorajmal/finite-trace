@@ -60,7 +60,7 @@ By default the diagram leaves out qT, as in class: every move that is not drawn 
 
 ## 4. Animation and testing
 
-1. Type any string in the **Test string** box. It runs on both the NFA (tab ①) and the DFA (tab ③).
+1. Type any string in the **Test string** box and press **Run ▶**. It runs on both the NFA (tab ①) and the DFA (tab ③).
 2. Use **Reset, Back, Play/Pause and Next** to step through it:
    - **NFA:** every current state glows yellow, and each step lists every branch (`A --b--> B`, `A --b--> E`). A branch with no move dies (`B --d--> φ`).
    - **NFA → DFA:** the DFA grows one row at a time.
@@ -80,7 +80,7 @@ automata/
   simulate.py          runs a string and builds the trace (q0 --a--> q1 ...)
   model.py             the Automaton class used by both machines
   diagram.py           Graphviz drawing (green start, blue double-circle final)
-tests/test_project.py  27 tests
+tests/test_project.py  28 tests
 ```
 
 ## Run it

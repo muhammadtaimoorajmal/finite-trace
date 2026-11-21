@@ -92,7 +92,8 @@ def animate_string(machine, name, word, hide=()):
                        for j, ch in enumerate(word)) or "<span>ε</span>"
         st.markdown(f'<div class="tape">{tape}</div>', unsafe_allow_html=True)
         st.caption(f"Step {i} of {len(word)}" + (" · finished" if i == len(word) else " · yellow box = next symbol"))
-        used = {(p, q) for p in history[i - 1] for q in machine.next(p, word[i - 1])} if i else set()
+        symbol = word[i - 1] if i else ""
+        used = {(p, symbol, q) for p in history[i - 1] for q in machine.next(p, symbol)} if i else set()
         st.graphviz_chart(to_dot(machine, history[i], used, hide), width="content")
         log, verdict = st.columns([3, 2])
         log.code("\n".join(lines[: i + 1] + (lines[-1:] if i == len(word) else [])), language=None)
@@ -103,7 +104,8 @@ def animate_string(machine, name, word, hide=()):
 
 
 # ---------------------------------------------------------------- inputs
-text = st.text_input("Regular expression ( + means OR, * means repeat ) — press Enter to check", PROJECT_RE)
+text = st.text_input("Regular expression ( + means OR, * means repeat ) — edit and press Enter to check",
+                     PROJECT_RE)
 try:
     validate(text)
 except RegexError as error:
@@ -116,9 +118,12 @@ st.success("Regular expression accepted. The NFA and the DFA are built below.")
 
 nfa = build_nfa()
 dfa, rows, subsets = nfa_to_dfa(nfa)
-left, right = st.columns([2, 1], vertical_alignment="bottom")
-word = left.text_input("Test string — runs on the NFA (tab ①) and the DFA (tab ③); leave empty for ε", "bbd").strip()
-show_trap = right.toggle("Draw trap state qT", False, help="Every move not drawn goes to the trap state qT.")
+with st.form("string_form", border=False):
+    box, button = st.columns([5, 1], vertical_alignment="bottom")
+    word = box.text_input("Test string (letters a, b, c, d; empty = ε) — animated on the NFA ① and the DFA ③",
+                          "bbd").strip()
+    button.form_submit_button("Run ▶", type="primary", width="stretch")
+show_trap = st.toggle("Draw trap state qT in the DFA diagrams", False, help="Every move not drawn goes to the trap state qT.")
 hide = set() if show_trap else {TRAP}
 st.caption("🟢 start state · 🔵 final state (double circle) · ⚪ other state · 🟡 current state · "
            "trap state qT: every move that is not drawn goes there")

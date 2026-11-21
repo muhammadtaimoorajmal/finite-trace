@@ -7,9 +7,9 @@ GREEN, BLUE, WHITE, YELLOW, LINE = "#22c55e", "#60a5fa", "#ffffff", "#facc15", "
 
 
 def to_dot(machine, active=(), used=(), hide=()):
-    """active: states to highlight. used: (src, dst) arrows to highlight.
+    """active: states to highlight. used: (src, symbol, dst) moves to highlight.
     hide: states not drawn (the trap state qT; every missing arrow goes there).
-    A hidden state still appears while it is active, with only the arrow just used."""
+    A hidden state still appears while it is active, with only the move just used."""
     out = [
         "digraph {",
         '  rankdir=LR; bgcolor="transparent"; nodesep=0.35; ranksep=0.5;',
@@ -34,11 +34,11 @@ def to_dot(machine, active=(), used=(), hide=()):
     # One arrow per (src, dst) pair, labelled with all its symbols, e.g. "a, b".
     arrows = {}
     for src, symbol, dst in machine.edges():
-        if (src not in hide and dst not in hide) or (src, dst) in used:
+        if (src not in hide and dst not in hide) or (src, symbol, dst) in used:
             arrows.setdefault((src, dst), []).append(symbol)
     for (src, dst), symbols in arrows.items():
         attrs = [f'label=" {", ".join(symbols)} "']
-        if (src, dst) in used:
+        if any((src, symbol, dst) in used for symbol in symbols):
             attrs += [f'color="{YELLOW}"', f'fontcolor="{YELLOW}"', "penwidth=3"]
         out.append(f'  "{src}" -> "{dst}" [{", ".join(attrs)}];')
     out.append("}")

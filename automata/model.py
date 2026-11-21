@@ -29,7 +29,7 @@ class Automaton:
                     yield src, symbol, dst
 
     def show(self, states):
-        """A set of states as text: {q1,q6}, or φ for the empty set."""
+        """A set of states as text: {B,E}, or φ for the empty set."""
         return set_name(states, self.states)
 
     def table(self, extra=None):
@@ -52,7 +52,7 @@ class Automaton:
 
 
 def set_name(states, order):
-    """Name of a set of states, e.g. {q1,q6}; the empty set is φ."""
+    """Name of a set of states, e.g. {B,E}; the empty set is φ."""
     if not states:
         return DEAD
     return "{" + ",".join(sorted(states, key=order.index)) + "}"

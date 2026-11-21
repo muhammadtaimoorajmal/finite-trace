@@ -90,6 +90,9 @@ def test_loop_belongs_only_to_cc():
 
 def test_trap_state_can_be_hidden_in_the_diagram():
     assert '"qT"' in to_dot(DFA) and '"qT"' not in to_dot(DFA, hide={"qT"})
+    # once reached, qT is drawn with only the move actually used (d), not "a, d"
+    dot = to_dot(DFA, active={"qT"}, used={("q6", "d", "qT")}, hide={"qT"})
+    assert '"q6" -> "qT" [label=" d "' in dot and '"q1" -> "qT"' not in dot
 
 
 # ---------- simulation trace
@@ -131,3 +134,16 @@ def test_app_animation_steps():
     assert any("Row 1 of 8" in m.value for m in at.markdown)
     next(b for b in at.button if b.key == "NFA:bbdn").click().run()
     assert any("Step 1 of 3" in c.value for c in at.caption)
+
+
+def test_app_runs_the_typed_string_on_both_machines():
+    at = app()
+    at.text_input[1].set_value("bbbd")
+    next(b for b in at.button if b.label == "Run ▶").click().run()
+    assert any("DFA reading “bbbd”" in m.value for m in at.markdown)
+    for _ in range(4):
+        next(b for b in at.button if b.key == "DFA:bbbdn").click().run()
+    assert any("qT is not a Final State → String Rejected" in e.value for e in at.error)
+    at.text_input[1].set_value("abx")
+    next(b for b in at.button if b.label == "Run ▶").click().run()
+    assert any("'x'" in e.value for e in at.error) and not at.exception
