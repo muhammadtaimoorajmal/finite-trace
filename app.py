@@ -33,6 +33,11 @@ st.markdown(f"""<div class="hero"><h1>🔁 FiniteTrace</h1>
  · Language: <span class="re">{LANGUAGE}</span></p></div>""", unsafe_allow_html=True)
 
 
+def plain(text):
+    """Show \\ and * in a message as typed (Streamlit would treat them as formatting)."""
+    return text.replace("\\", "\\\\").replace("*", r"\*")
+
+
 def table(rows, where=st):
     """Show a list of dicts as a table tall enough for every row."""
     where.dataframe(rows, hide_index=True, width="stretch", height=35 * (len(rows) + 1) + 3)
@@ -82,8 +87,9 @@ def player(key, last, frame):
 def animate_string(machine, name, word, hide=()):
     """Animate the machine reading `word`. The trap state is drawn only when the run reaches it."""
     if error := check_word(machine, word):
-        st.error(error)
+        st.error(plain(error))
         return
+    st.markdown(f"#### Animation: {name} reading “{word or 'ε'}”")
     history = run(machine, word)
     lines = trace(machine, word, history)
 
@@ -111,10 +117,10 @@ text = st.text_input("Regular expression ( + means OR, * means repeat ) — edit
 try:
     validate(text)
 except RegexError as error:
-    st.error(f"Invalid Regular Expression: {error}".replace("*", r"\*"))
+    st.error(plain(f"Invalid Regular Expression: {error}"))
     st.stop()
 except NotProjectRegex as error:
-    st.warning(f"Not allowed: {error}".replace("*", r"\*"))
+    st.warning(plain(f"Not allowed: {error}"))
     st.stop()
 st.success("Regular expression accepted. The NFA and the DFA are built below.")
 
@@ -122,9 +128,10 @@ nfa = build_nfa()
 dfa, rows, subsets = nfa_to_dfa(nfa)
 with st.form("string_form", border=False):
     box, button = st.columns([5, 1], vertical_alignment="bottom")
-    word = box.text_input("Test string (letters a, b, c, d; empty = ε) — animated on the NFA ① and the DFA ③",
-                          "bbd").strip()
+    word = box.text_input("Test string (letters a, b, c, d; leave empty or type ε for the empty string) — "
+                          "animated on the NFA ① and the DFA ③", "bbd").strip()
     button.form_submit_button("Run ▶", type="primary", width="stretch")
+word = "" if word == "ε" else word
 show_trap = st.toggle("Draw trap state qT in the DFA diagrams", False, help="Every move not drawn goes to the trap state qT.")
 hide = set() if show_trap else {TRAP}
 st.caption("🟢 start state · 🔵 final state (double circle) · ⚪ other state · 🟡 current state · "
@@ -146,7 +153,6 @@ the final state **G**:
     graph.graphviz_chart(to_dot(nfa), width="content")
     tbl.markdown("**Transition table** (φ = no move)")
     table(nfa.table(), tbl)
-    st.markdown(f"#### Animation: NFA reading “{word or 'ε'}”")
     animate_string(nfa, "NFA", word)
 
 # ---------------------------------------------------------------- ② NFA -> DFA
@@ -183,7 +189,6 @@ with tab_dfa:
     st.graphviz_chart(to_dot(dfa, hide=hide), width="content")
     st.markdown("**Transition table** (→ start, * final; each DFA state is a set of NFA states)")
     table(dfa.table({"NFA states": subsets}))
-    st.markdown(f"#### Animation: DFA reading “{word or 'ε'}”")
     animate_string(dfa, "DFA", word, hide)
 
 # ---------------------------------------------------------------- ④ test many strings

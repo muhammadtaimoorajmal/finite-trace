@@ -22,7 +22,8 @@ def test_project_regex_is_accepted_with_any_spacing(text):
     validate(text)
 
 
-@pytest.mark.parametrize("text", ["(a + b)*abb", "(bb + b + bbb)*cc + ad + bbd", "b*cc + ad + bbd", "a"])
+@pytest.mark.parametrize("text", ["(a + b)*abb", "(bb + b + bbb)*cc + ad + bbd", "b*cc + ad + bbd", "a",
+                                  "(b + bbb + bb)* cc + ad + bbd + ε", "Λ"])
 def test_other_valid_regexes_are_declined(text):
     with pytest.raises(NotProjectRegex, match="built only for Project 29"):
         validate(text)
@@ -131,6 +132,8 @@ def test_app_declines_other_regex_and_shows_syntax_errors():
     assert "built only for Project 29" in at.warning[0].value and not at.tabs
     at = app("(a+b")
     assert "Invalid Regular Expression: Missing closing parenthesis" in at.error[0].value
+    at = app(r"a\b")  # the backslash is escaped, so it is shown and not swallowed by formatting
+    assert r"Invalid symbol '\\'" in at.error[0].value
 
 
 def test_app_animation_steps():
@@ -149,6 +152,9 @@ def test_app_runs_the_typed_string_on_both_machines():
     for _ in range(4):
         next(b for b in at.button if b.key == "DFA:bbbdn").click().run()
     assert any("qT is not a Final State → String Rejected" in e.value for e in at.error)
+    at.text_input[1].set_value("ε")
+    next(b for b in at.button if b.label == "Run ▶").click().run()
+    assert any("DFA reading “ε”" in m.value for m in at.markdown)
     at.text_input[1].set_value("abx")
     next(b for b in at.button if b.label == "Run ▶").click().run()
     assert any("'x'" in e.value for e in at.error) and not at.exception

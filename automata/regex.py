@@ -22,8 +22,8 @@ def tokenize(text):
     for pos, ch in enumerate(text, start=1):
         if ch.isspace():
             continue
-        if ch not in "+*()" and not (ch.isascii() and ch.isalnum()):
-            raise RegexError(f"Invalid symbol '{ch}' at position {pos}. Allowed: letters, digits, + * ( )")
+        if ch not in "+*()εΛ" and not (ch.isascii() and ch.isalnum()):  # ε / Λ = the empty string
+            raise RegexError(f"Invalid symbol '{ch}' at position {pos}. Allowed: letters, digits, ε, + * ( )")
         tokens.append((ch, pos))
     return tokens
 
