@@ -1,15 +1,16 @@
-"""The one data structure used by all three machines (ε-NFA, DFA, minimized DFA)."""
+"""The data structure used by both machines (NFA and DFA)."""
 from dataclasses import dataclass, field
 
-EPS = "ε"  # label of an epsilon (empty) move
+DEAD = "φ"  # the empty set = dead (trap) state
 
 
 @dataclass
 class Automaton:
-    states: list   # state names in display order, e.g. ["q0", "q1", ...]
-    alphabet: list  # input symbols, e.g. ["a", "b", "c", "d"]
+    states: list    # state names in display order
+    alphabet: list  # input symbols: ["a", "b", "c", "d"]
     start: str
     finals: set
+    is_dfa: bool = False  # a DFA has exactly one next state for every (state, symbol)
     delta: dict = field(default_factory=dict)  # (state, symbol) -> set of next states
 
     def add(self, src, symbol, dst):
@@ -20,41 +21,33 @@ class Automaton:
         """All states reachable from `state` on `symbol` (empty set if none)."""
         return self.delta.get((state, symbol), set())
 
-    def symbols(self):
-        """Table columns: the alphabet, plus ε if the machine has ε-moves."""
-        has_eps = any(symbol == EPS for _, symbol in self.delta)
-        return self.alphabet + ([EPS] if has_eps else [])
-
     def edges(self):
-        """Every transition as (src, symbol, dst), in a stable order."""
+        """Every transition as (src, symbol, dst)."""
         for src in self.states:
-            for symbol in self.symbols():
-                for dst in self.sorted(self.next(src, symbol)):
+            for symbol in self.alphabet:
+                for dst in sorted(self.next(src, symbol), key=self.states.index):
                     yield src, symbol, dst
 
-    def sorted(self, states):
-        """Sort state names by their position in self.states (q2 before q10)."""
-        return sorted(states, key=self.states.index)
-
     def show(self, states):
-        """Format a set of states: 'q1' for one state, '{q1, q2}' for more, '∅' for none."""
-        if not states:
-            return "∅"
-        names = self.sorted(states)
-        return names[0] if len(names) == 1 else "{" + ", ".join(names) + "}"
+        """A set of states as text: {q1,q6}, or φ for the empty set."""
+        return set_name(states, self.states)
 
-    def table(self, extra=None):
-        """Transition table rows. → marks the start state, * marks final states.
-
-        `extra` can add a column, e.g. {"NFA subset": {"D0": "{q0, q1}"}}.
-        """
+    def table(self):
+        """Transition table rows. → marks the start state, * marks final states."""
         rows = []
         for state in self.states:
             mark = ("→ " if state == self.start else "") + ("* " if state in self.finals else "")
             row = {"State": mark + state}
-            for column, values in (extra or {}).items():
-                row[column] = values[state]
-            for symbol in self.symbols():
-                row[symbol] = self.show(self.next(state, symbol)) if self.next(state, symbol) else "—"
+            for symbol in self.alphabet:
+                targets = self.next(state, symbol)
+                # DFA cell: the one next state.  NFA cell: the set of next states.
+                row[symbol] = next(iter(targets)) if self.is_dfa else self.show(targets)
             rows.append(row)
         return rows
+
+
+def set_name(states, order):
+    """Name of a set of states, e.g. {q1,q6}; the empty set is φ."""
+    if not states:
+        return DEAD
+    return "{" + ",".join(sorted(states, key=order.index)) + "}"

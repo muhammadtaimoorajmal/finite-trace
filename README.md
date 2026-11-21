@@ -1,91 +1,93 @@
 # FiniteTrace: Project 29
 
-**Regular Expression → ε-NFA → DFA → Minimized DFA, with step-by-step animation.**
+**Regular Expression → NFA → NFA to DFA conversion → DFA, with step-by-step animation.**
 
 Semester project for *Theory of Automata*. Student: **Muhammad Taimoor Ajmal**, Project 29.
 
 | | |
 | --- | --- |
 | **Regular expression** | `(b + bbb + bb)* cc + ad + bbd` |
-| **Notation** | `+` = union (OR), `*` = Kleene star, side by side = concatenation |
+| **Notation** | `+` = union (OR), `*` = repeat zero or more times, side by side = concatenation |
 | **Language** | `b*cc ∪ {ad, bbd}` over the alphabet {a, b, c, d} |
-| **Accepted examples** | `cc`, `bcc`, `bbbbcc`, `ad`, `bbd` |
-| **Rejected examples** | `bd`, `bbbd`, `acc`, `ccc`, ε (empty string) |
+| **Accepted** | `cc`, `bcc`, `bbbbcc`, `ad`, `bbd` |
+| **Rejected** | `bd`, `bad`, `bbbd`, `acc`, ε (empty string) |
 
 ![FiniteTrace home screen](assets/home.png)
 
-The app is built **only for this regular expression**. Any other regular expression is declined with a warning, and malformed input gets a clear syntax error.
+The app works **only for this regular expression**. Any other regular expression is declined with a warning, and a malformed one gets a clear syntax error.
 
-## What it does
+## The NFA (9 states)
 
-| Step | Algorithm | Result for Project 29 |
+From the start state **q0** there is one branch for each part of the union:
+
+| Branch | States | Why |
 | --- | --- | --- |
-| 1. Validate the RE | Tokenizer and syntax checks, then a comparison with the project RE (spaces ignored) | Error or warning for anything else |
-| 2. RE → ε-NFA | **Thompson's construction**, showing all 26 intermediate fragments | 36 states, 41 transitions (28 ε) |
-| 3. ε-NFA → DFA | **Subset construction** (ε-closure and move), each DFA state shown as a set of NFA states | 10 states, D0–D9. Final: D5, D7, D9. D4 = ∅ (dead state) |
-| 4. DFA → minimal DFA | **Table-Filling method**, with every marked pair, the round it was marked in and why | 8 states. D5 ≡ D7 ≡ D9 merge into M5 |
-| 5. Simulation | Runs many strings on all three machines, with an animated, step-by-step trace | e.g. `D0 --a--> D1`, `D1 --d--> D5`, `D5 is Final State → String Accepted` |
+| `(b + bbb + bb)* cc` | q0 → q1 (b-loop) → q2 → **q3** | Any mix of b, bb and bbb is just "any number of b's", so q1 loops on b. q0 → q2 on c covers zero b's. |
+| `ad` | q0 → q4 → **q5** | |
+| `bbd` | q0 → q6 → q7 → **q8** | |
 
-Every step shows its transition table. Every machine has a state diagram:
-- 🟢 start state
-- 🔵 final state (double circle)
-- ⚪ normal state
-- dashed arrows for ε-moves
-- 🟠 border for merged states
-- 🟡 the active state during animation
+The b-loop has its **own state q1**, not the start state. If q0 had the loop, the NFA would also accept `bad` and `bbbd`, which are **not** in the language, because the star only applies to `cc`.
 
-All algorithms are written by hand; no automata library is used.
+![NFA](assets/nfa.png)
 
-## Screenshots
+## NFA → DFA conversion (subset construction)
 
-| | |
+This uses the method from class:
+
+1. Start with Q' = { {q0} }.
+2. For each new set and each symbol, the next set is the union of the NFA moves of its states.
+3. A set not seen before is added to Q'. The empty set **φ** is the dead (trap) state.
+4. A DFA state is final if its set contains q3, q5 or q8.
+
+The app builds the DFA one row at a time and explains every cell, for example `δ({q1,q6}, b) = δ(q1,b) ∪ δ(q6,b) = {q1} ∪ {q7} = {q1,q7}`.
+
+| DFA state | a | b | c | d |
+| --- | --- | --- | --- | --- |
+| → {q0} | {q4} | {q1,q6} | {q2} | φ |
+| {q4} | φ | φ | φ | {q5} |
+| {q1,q6} | φ | {q1,q7} | {q2} | φ |
+| {q2} | φ | φ | {q3} | φ |
+| φ | φ | φ | φ | φ |
+| * {q5} | φ | φ | φ | φ |
+| {q1,q7} | φ | {q1} | {q2} | {q8} |
+| * {q3} | φ | φ | φ | φ |
+| {q1} | φ | {q1} | {q2} | φ |
+| * {q8} | φ | φ | φ | φ |
+
+That makes 10 DFA states, including the dead state φ.
+
+![Conversion step by step](assets/conversion.png)
+
+## Animation
+
+Every machine can be animated with **Reset, Back, Play/Pause and Next** buttons:
+
+| Tab | What you see |
 | --- | --- |
-| ![Thompson ε-NFA](assets/enfa.png) | ![Subset construction DFA](assets/dfa.png) |
-| **Thompson ε-NFA:** construction steps, diagram and ε-table | **Subset construction:** DFA states as sets of NFA states |
-| ![Table-Filling minimization](assets/minimization.png) | ![Animation](assets/animation.png) |
-| **Minimization:** before and after tables, merged states highlighted | **Animation:** play, pause, back, next, speed, plus the trace |
+| **① NFA** | All current states glow yellow. Each step lists every branch, for example `q0 --b--> q1` and `q0 --b--> q6`. A branch with no move dies (`q1 --d--> φ`). |
+| **② NFA → DFA** | The DFA grows row by row, with the current row highlighted and explained. |
+| **③ DFA** | One current state at a time, ending with `{q8} is Final State → String Accepted`. |
+| **④ Test many strings** | Accepted or Rejected for each string, with the full NFA and DFA traces. |
 
-## Input validation
-
-| Input | Message |
-| --- | --- |
-| `(b + bbb + bb)* cc + ad + bbd` (any spacing) | ✅ Regular expression accepted. All three machines were built. |
-| `(a + b)*abb` | ⚠️ Not allowed: '(a + b)*abb' is a valid regular expression, but this machine is built only for Project 29 |
-| `(a+b` | ❌ Invalid Regular Expression: Missing closing parenthesis for '(' at position 1. |
-| `a++b` | ❌ Invalid Regular Expression: Two operators in a row ('++') at position 3. |
-| `a+b)` | ❌ Invalid Regular Expression: Unmatched closing parenthesis at position 4. |
-| `*ab` | ❌ Invalid Regular Expression: '*' at position 1 has nothing to repeat. |
-| `a()b` | ❌ Invalid Regular Expression: Empty parentheses '()' at position 2. |
-| `a#b` | ❌ Invalid Regular Expression: Invalid symbol '#' at position 2. |
-
-Test strings that use a symbol outside {a, b, c, d} are also reported, for example `'abx' contains 'x'`.
+![DFA animation](assets/dfa_animation.png)
 
 ## Project structure
 
 ```text
-app.py                 Streamlit interface: input, tabs, tables, diagrams, animation
+app.py                 Streamlit interface (tabs, tables, diagrams, animation)
 automata/
-  model.py             Automaton class shared by all three machines
-  regex.py             syntax check, "is it the Project 29 RE?", postfix (shunting-yard)
-  thompson.py          Thompson's construction: postfix → ε-NFA
-  subset.py            ε-closure, move, subset construction: ε-NFA → DFA
-  minimize.py          Table-Filling minimization: DFA → minimal DFA
-  simulate.py          runs a string on any machine and builds the trace
-  diagram.py           Graphviz DOT for the state diagrams
-tests/test_project.py  30 tests (validation, machine sizes, language check, interface)
-```
-
-How the pieces connect:
-
-```text
-text ──regex.validate──▶ regex.to_postfix ──▶ thompson ──▶ subset_construction ──▶ table_filling
-                                                │                │                    │
-                                                └────────── simulate / diagram ───────┘
+  regex.py             checks the RE: syntax errors, and "is it the Project 29 RE?"
+  nfa.py               the NFA: one branch per part of the RE
+  convert.py           NFA -> DFA by subset construction, row by row
+  simulate.py          runs a string and builds the trace (q0 --a--> q4 ...)
+  model.py             the Automaton class used by both machines
+  diagram.py           Graphviz drawing (green start, blue double-circle finals)
+tests/test_project.py  25 tests
 ```
 
 ## Run it
 
-Requires Python 3.11 or newer. No Graphviz installation is needed; diagrams are drawn in the browser.
+You need Python 3.11 or newer. You don't need to install Graphviz; the diagrams are drawn in the browser.
 
 ```bash
 python -m venv .venv
@@ -97,7 +99,7 @@ python -m venv .venv
 .venv/bin/python -m streamlit run app.py
 ```
 
-Then open http://localhost:8501, press **Build machines**, and explore the four tabs.
+Then open http://localhost:8501.
 
 ## Tests
 
@@ -106,14 +108,15 @@ python -m pytest
 ```
 
 The tests check:
+
 - every error message
 - that other regular expressions are declined
-- the machine sizes (36 → 10 → 8)
-- the merged states
+- the NFA and the DFA table
+- the conversion steps
 - the trace text
-- the interface itself
+- the interface
 
-They also check that **all three machines accept exactly `b*cc ∪ {ad, bbd}`**. They compare against Python's `re` on every string over {a, b, c, d} up to length 7 (21,845 strings per machine). GitHub Actions runs the tests on Python 3.11 and 3.13.
+They also check that the **NFA and the DFA accept exactly `b*cc ∪ {ad, bbd}`**. Every string over {a, b, c, d} up to length 7 is compared with Python's `re`. GitHub Actions runs the tests on Python 3.11 and 3.13.
 
 ## License
 

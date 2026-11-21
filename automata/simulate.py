@@ -1,9 +1,8 @@
-"""Step 5: run a string on any of the three machines.
+"""Step 3: run a string on the NFA or the DFA.
 
-One function works for all three: keep the SET of active states, and after each
-symbol take ε-closure(move(active, symbol)). For a DFA the set always has one state.
+Keep the SET of current states. After each symbol, the new set is every state reachable
+on that symbol. For the DFA the set always holds exactly one state.
 """
-from .subset import epsilon_closure, move
 
 
 def check_word(machine, word):
@@ -15,33 +14,37 @@ def check_word(machine, word):
 
 
 def run(machine, word):
-    """Active-state sets: before reading anything, then after each symbol."""
-    active = epsilon_closure(machine, {machine.start})
-    history = [active]
+    """Sets of current states: before reading anything, then after each symbol."""
+    current = {machine.start}
+    history = [current]
     for symbol in word:
-        active = epsilon_closure(machine, move(machine, active, symbol))
-        history.append(active)
+        current = {q for p in current for q in machine.next(p, symbol)}
+        history.append(current)
     return history
 
 
 def accepts(machine, word):
-    """True if the machine ends in (or its active set contains) a final state."""
+    """True if a final state is reached at the end of the word."""
     return bool(run(machine, word)[-1] & machine.finals)
 
 
 def trace(machine, word, history):
-    """Readable steps like 'q0 --a--> q1' and the final verdict."""
-    show = machine.show
-    lines = [f"Start: {show(history[0])}"]
-    lines += [f"{show(history[i])} --{word[i]}--> {show(history[i + 1])}" for i in range(len(word))]
-    last = history[-1]
-    finals = last & machine.finals
-    if len(last) == 1 and finals:
-        lines.append(f"{show(last)} is Final State → String Accepted")
-    elif finals:
-        lines.append(f"Active set contains final state {show(finals)} → String Accepted")
-    elif len(last) == 1:
-        lines.append(f"{show(last)} is not a Final State → String Rejected")
+    """Steps like 'q0 --a--> q4'. lines[0] = start, lines[i] = step i, lines[-1] = verdict."""
+    order = lambda states: sorted(states, key=machine.states.index)
+    lines = [f"Start: {machine.start}"]
+    for i, symbol in enumerate(word):
+        step = []
+        for p in order(history[i]):
+            targets = order(machine.next(p, symbol))
+            step += [f"{p} --{symbol}--> {q}" for q in targets] or [f"{p} --{symbol}--> φ (this branch dies)"]
+        lines.append("\n".join(step) or f"φ --{symbol}--> φ (no branch left)")
+
+    last = order(history[-1])
+    finals = [s for s in last if s in machine.finals]
+    if finals:
+        lines.append(f"{', '.join(finals)} is Final State → String Accepted")
+    elif not last:
+        lines.append("All branches died → String Rejected")
     else:
-        lines.append("No final state in the active set → String Rejected")
+        lines.append(f"{', '.join(last)} is not a Final State → String Rejected")
     return lines

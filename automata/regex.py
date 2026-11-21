@@ -1,4 +1,4 @@
-"""Step 1: check the regular expression and convert it to postfix.
+"""Step 0: check the regular expression the user typed.
 
 Textbook notation:  +  union (OR),  *  Kleene star,  writing side by side = concatenation.
 Precedence (high to low):  *   then concatenation   then +
@@ -68,34 +68,3 @@ def validate(text):
             f"Project 29: {PROJECT_RE}"
         )
 
-
-def to_postfix(text):
-    """Convert the RE to postfix with the shunting-yard algorithm. '.' = concatenation."""
-    # 1. Make concatenation explicit: insert '.' between "ab", "a(", ")a", ")(", "*a", "*(".
-    infix = []
-    for ch, _ in tokenize(text):
-        if infix and infix[-1] not in "+(" and ch not in "+*)":
-            infix.append(".")
-        infix.append(ch)
-
-    # 2. Shunting-yard: operands go straight to the output, operators wait on a stack.
-    precedence = {"+": 1, ".": 2}
-    output, stack = [], []
-    for ch in infix:
-        if ch == "(":
-            stack.append(ch)
-        elif ch == ")":
-            while stack[-1] != "(":
-                output.append(stack.pop())
-            stack.pop()  # drop the '('
-        elif ch == "*":
-            output.append(ch)  # unary postfix operator with the highest precedence
-        elif ch in precedence:
-            while stack and stack[-1] != "(" and precedence[stack[-1]] >= precedence[ch]:
-                output.append(stack.pop())
-            stack.append(ch)
-        else:
-            output.append(ch)  # a symbol
-    while stack:
-        output.append(stack.pop())
-    return output
