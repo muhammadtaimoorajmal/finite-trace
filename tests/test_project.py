@@ -6,12 +6,13 @@ import pytest
 from streamlit.testing.v1 import AppTest
 
 from automata.convert import nfa_to_dfa, partial
+from automata.diagram import to_dot
 from automata.nfa import build_nfa
 from automata.regex import PROJECT_RE, NotProjectRegex, RegexError, validate
 from automata.simulate import accepts, check_word, run, trace
 
 NFA = build_nfa()
-DFA, ROWS = nfa_to_dfa(NFA)
+DFA, ROWS, SUBSETS = nfa_to_dfa(NFA)
 ORACLE = re.compile(r"b*cc|ad|bbd")  # the same language in Python's regex syntax
 
 
@@ -45,22 +46,34 @@ def test_malformed_regexes_give_clear_errors(text, message):
 
 # ---------- NFA and DFA
 def test_nfa_has_one_branch_per_term():
-    assert NFA.states == [f"q{i}" for i in range(9)] and NFA.start == "q0"
-    assert NFA.finals == {"q3", "q5", "q8"}
-    assert NFA.next("q0", "b") == {"q1", "q6"}  # nondeterministic: loop branch or bbd branch
-    assert NFA.next("q1", "b") == {"q1"}        # the (b + bbb + bb)* loop
+    assert NFA.states == list("ABCDEFG") and NFA.start == "A" and NFA.finals == {"G"}
+    assert NFA.next("A", "b") == {"B", "E"}  # nondeterministic: loop branch or bbd branch
+    assert NFA.next("B", "b") == {"B"}       # the (b + bbb + bb)* loop
+    assert NFA.next("D", "d") == NFA.next("C", "c") == NFA.next("F", "d") == {"G"}  # one final state
 
 
-def test_subset_construction():
-    assert DFA.states == ["{q0}", "{q4}", "{q1,q6}", "{q2}", "φ", "{q5}", "{q1,q7}", "{q3}", "{q1}", "{q8}"]
-    assert DFA.finals == {"{q3}", "{q5}", "{q8}"}
-    assert DFA.next("{q1,q6}", "b") == {"{q1,q7}"}
-    assert all(DFA.next("φ", x) == {"φ"} for x in "abcd")  # dead state
+def test_subset_construction_gives_the_8_state_dfa():
+    assert DFA.states == ["q0", "q1", "q2", "q3", "qT", "q4", "q5", "q6"]
+    assert SUBSETS == {"q0": "{A}", "q1": "{D}", "q2": "{B,E}", "q3": "{C}", "qT": "φ",
+                       "q4": "{G}", "q5": "{B,F}", "q6": "{B}"}
+    assert DFA.finals == {"q4"}
+    assert all(DFA.next("qT", x) == {"qT"} for x in "abcd")  # trap state
     assert all(len(DFA.next(s, x)) == 1 for s in DFA.states for x in "abcd")  # complete DFA
     assert len(ROWS) == len(DFA.states)
-    assert "δ({q1,q6}, b) = δ(q1,b) ∪ δ(q6,b) = {q1} ∪ {q7} = {q1,q7}" in ROWS[2]["work"]
-    assert partial(DFA, ROWS, 0).states == ["{q0}"]
-    assert partial(DFA, ROWS, 1).states == ["{q0}", "{q4}", "{q1,q6}", "{q2}", "φ"]
+    assert "δ({B,E}, b) = δ(B,b) ∪ δ(E,b) = {B} ∪ {F} = {B,F}  → q5" in ROWS[2]["work"]
+    assert partial(DFA, ROWS, 0).states == ["q0"]
+    assert partial(DFA, ROWS, 1).states == ["q0", "q1", "q2", "q3", "qT"]
+
+
+def test_dfa_is_the_same_machine_as_the_hand_drawn_one():
+    # hand-drawn DFA from class notes: q0 b-> q1 b-> q2 b-> q3 (loop b), c-> q4 c-> q6, a-> q5 d-> q6, q2 d-> q6
+    hand = {("q0", "a"): "q5", ("q0", "b"): "q1", ("q0", "c"): "q4", ("q1", "b"): "q2", ("q1", "c"): "q4",
+            ("q2", "b"): "q3", ("q2", "c"): "q4", ("q2", "d"): "q6", ("q3", "b"): "q3", ("q3", "c"): "q4",
+            ("q4", "c"): "q6", ("q5", "d"): "q6"}
+    rename = {"q0": "q0", "q1": "q5", "q2": "q1", "q3": "q4", "q4": "q6", "q5": "q2", "q6": "q3"}
+    for (src, x), dst in hand.items():
+        ours_src = next(k for k, v in rename.items() if v == src)
+        assert rename[next(iter(DFA.next(ours_src, x)))] == dst
 
 
 @pytest.mark.parametrize("machine", [NFA, DFA], ids=["NFA", "DFA"])
@@ -75,16 +88,21 @@ def test_loop_belongs_only_to_cc():
         assert not accepts(NFA, word) and not accepts(DFA, word)
 
 
+def test_trap_state_can_be_hidden_in_the_diagram():
+    assert '"qT"' in to_dot(DFA) and '"qT"' not in to_dot(DFA, hide={"qT"})
+
+
 # ---------- simulation trace
 def test_trace_lines():
     assert trace(DFA, "ad", run(DFA, "ad")) == [
-        "Start: {q0}", "{q0} --a--> {q4}", "{q4} --d--> {q5}", "{q5} is Final State → String Accepted"]
+        "Start: q0", "q0 --a--> q1", "q1 --d--> q4", "q4 is Final State → String Accepted"]
+    assert trace(DFA, "bd", run(DFA, "bd"))[-1] == "qT is not a Final State → String Rejected"
     nfa_lines = trace(NFA, "bbd", run(NFA, "bbd"))
-    assert nfa_lines[1] == "q0 --b--> q1\nq0 --b--> q6"
-    assert "q1 --d--> φ (this branch dies)" in nfa_lines[3]
-    assert nfa_lines[-1] == "q8 is Final State → String Accepted"
+    assert nfa_lines[1] == "A --b--> B\nA --b--> E"
+    assert nfa_lines[3] == "B --d--> φ (this branch dies)\nF --d--> G"
+    assert nfa_lines[-1] == "G is Final State → String Accepted"
     assert trace(NFA, "bad", run(NFA, "bad"))[-1] == "All branches died → String Rejected"
-    assert check_word(DFA, "abx") and check_word(DFA, "bbd") is None
+    assert "String Rejected" in check_word(DFA, "abx") and check_word(DFA, "bbd") is None
 
 
 # ---------- interface
@@ -110,6 +128,6 @@ def test_app_declines_other_regex_and_shows_syntax_errors():
 def test_app_animation_steps():
     at = app()
     next(b for b in at.button if b.key == "conversionn").click().run()
-    assert any("Row 1 of 10" in m.value for m in at.markdown)
+    assert any("Row 1 of 8" in m.value for m in at.markdown)
     next(b for b in at.button if b.key == "NFA:bbdn").click().run()
     assert any("Step 1 of 3" in c.value for c in at.caption)

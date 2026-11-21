@@ -9,7 +9,8 @@ def check_word(machine, word):
     """Return an error message if the word uses a symbol outside the alphabet, else None."""
     for ch in word:
         if ch not in machine.alphabet:
-            return f"'{word}' contains '{ch}', which is not in the alphabet {{{', '.join(machine.alphabet)}}}."
+            return (f"String Rejected: '{word}' contains '{ch}', which is not in the alphabet "
+                    f"{{{', '.join(machine.alphabet)}}}.")
     return None
 
 

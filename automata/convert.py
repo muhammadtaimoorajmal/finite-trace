@@ -1,12 +1,15 @@
 """Step 2: NFA -> DFA by subset construction (the method from class).
 
-1. Start with Q' = {q0}.
-2. For each set in Q' and each symbol, the next set is the union of the NFA moves
+1. Start with the set {A}; it becomes DFA state q0.
+2. For each new set and each symbol, the next set is the union of the NFA moves
    of all its states.
-3. If that set is not in Q' yet, add it to Q' (the empty set φ is the dead state).
-4. A DFA state is final if its set contains a final state of the NFA.
+3. A set not seen before becomes a new DFA state q1, q2, ... in the order found.
+   The empty set (no move possible) becomes the trap (dead) state qT.
+4. A DFA state is final if its set contains the NFA final state G.
 """
 from .model import Automaton, set_name
+
+TRAP = "qT"
 
 
 def move(nfa, states, symbol):
@@ -15,11 +18,15 @@ def move(nfa, states, symbol):
 
 
 def nfa_to_dfa(nfa):
-    """Return (dfa, rows). rows[i] explains how row i of the DFA table was found."""
+    """Return (dfa, rows, subsets).
+
+    rows[i] explains how row i of the DFA table was found;
+    subsets maps each DFA state name to its set of NFA states, e.g. "q2" -> "{B,E}".
+    """
     start = frozenset({nfa.start})
-    names = {start: set_name(start, nfa.states)}  # NFA set -> DFA state name
-    queue = [start]                               # sets whose row is not done yet
-    dfa = Automaton([], nfa.alphabet, names[start], set(), is_dfa=True)
+    names = {start: "q0"}  # NFA set -> DFA state name
+    queue = [start]        # sets whose row is not done yet
+    dfa = Automaton([], nfa.alphabet, "q0", set(), is_dfa=True)
     rows = []
 
     while queue:
@@ -28,21 +35,23 @@ def nfa_to_dfa(nfa):
         for symbol in nfa.alphabet:
             target = move(nfa, current, symbol)
             if target not in names:  # Step 3: a new DFA state
-                names[target] = set_name(target, nfa.states)
+                names[target] = f"q{sum(1 for s in names if s)}" if target else TRAP
                 queue.append(target)
                 row["new"].append(names[target])
             dfa.add(names[current], symbol, names[target])
-            # e.g.  δ({q1,q6}, b) = δ(q1,b) ∪ δ(q6,b) = {q1} ∪ {q7} = {q1,q7}
+            # e.g.  δ({B,E}, b) = δ(B,b) ∪ δ(E,b) = {B} ∪ {F} = {B,F} → q5
             parts = sorted(current, key=nfa.states.index)
             row["work"].append(
-                f"δ({names[current]}, {symbol}) = " + " ∪ ".join(f"δ({p},{symbol})" for p in parts)
-                + " = " + " ∪ ".join(nfa.show(nfa.next(p, symbol)) for p in parts)
-                + f" = {names[target]}")
+                f"δ({set_name(current, nfa.states)}, {symbol}) = "
+                + " ∪ ".join(f"δ({p},{symbol})" for p in parts) + " = "
+                + " ∪ ".join(nfa.show(nfa.next(p, symbol)) for p in parts)
+                + f" = {set_name(target, nfa.states)}  → {names[target]}")
         rows.append(row)
 
     dfa.states = list(names.values())
     dfa.finals = {name for s, name in names.items() if s & nfa.finals}  # Step 4
-    return dfa, rows
+    subsets = {name: set_name(s, nfa.states) for s, name in names.items()}
+    return dfa, rows, subsets
 
 
 def partial(dfa, rows, k):

@@ -6,8 +6,10 @@ During an animation the current states glow yellow and the arrows just used turn
 GREEN, BLUE, WHITE, YELLOW, LINE = "#22c55e", "#60a5fa", "#ffffff", "#facc15", "#94a3b8"
 
 
-def to_dot(machine, active=(), used=()):
-    """active: states to highlight. used: (src, dst) arrows to highlight."""
+def to_dot(machine, active=(), used=(), hide=()):
+    """active: states to highlight. used: (src, dst) arrows to highlight.
+    hide: states not drawn (the trap state qT; every missing arrow goes there).
+    A hidden state still appears while it is active, with only the arrow just used."""
     out = [
         "digraph {",
         '  rankdir=LR; bgcolor="transparent"; nodesep=0.35; ranksep=0.5;',
@@ -18,6 +20,8 @@ def to_dot(machine, active=(), used=()):
         f'  start -> "{machine.start}" [color="{GREEN}", penwidth=2];',
     ]
     for s in machine.states:
+        if s in hide and s not in active:
+            continue
         attrs = []
         if s in machine.finals:
             attrs += ["shape=doublecircle", f'fillcolor="{BLUE}"']
@@ -30,7 +34,8 @@ def to_dot(machine, active=(), used=()):
     # One arrow per (src, dst) pair, labelled with all its symbols, e.g. "a, b".
     arrows = {}
     for src, symbol, dst in machine.edges():
-        arrows.setdefault((src, dst), []).append(symbol)
+        if (src not in hide and dst not in hide) or (src, dst) in used:
+            arrows.setdefault((src, dst), []).append(symbol)
     for (src, dst), symbols in arrows.items():
         attrs = [f'label=" {", ".join(symbols)} "']
         if (src, dst) in used:

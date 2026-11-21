@@ -1,31 +1,32 @@
 """Step 1: the NFA for (b + bbb + bb)* cc + ad + bbd.
 
-Built like in class: one start state q0, and one branch for each part of the union (+).
+Built like in class: start state A, one branch for each part of the union (+),
+and all three branches end in the same final state G.
 
-  Branch 1  (b + bbb + bb)* cc
-            Any mix of b, bb and bbb is just "any number of b's", so q1 loops on b.
-            The loop gets its own state q1 (not q0): it belongs only to cc.
-            If q0 had the loop, the NFA would also accept "bad" and "bbbd", which are wrong.
-  Branch 2  ad
-  Branch 3  bbd
+  Branch 1  (b + bbb + bb)* cc :  A -b-> B (B loops on b), A or B -c-> C -c-> G
+            Any mix of b, bb and bbb is just "any number of b's", so B loops on b.
+            The loop has its own state B (not A) because it belongs only to cc:
+            a loop on A would also accept "bad" and "bbbd", which are wrong.
+  Branch 2  ad  :  A -a-> D -d-> G
+  Branch 3  bbd :  A -b-> E -b-> F -d-> G
 """
 from .model import Automaton
 
 TRANSITIONS = [
     # Branch 1: (b + bbb + bb)* cc
-    ("q0", "b", "q1"), ("q1", "b", "q1"),  # the b's (loop)
-    ("q0", "c", "q2"), ("q1", "c", "q2"),  # first c, after zero or more b's
-    ("q2", "c", "q3"),                     # second c -> q3 is final
+    ("A", "b", "B"), ("B", "b", "B"),  # the b's (B loops on b)
+    ("A", "c", "C"), ("B", "c", "C"),  # first c, after zero or more b's
+    ("C", "c", "G"),                   # second c -> final state G
     # Branch 2: ad
-    ("q0", "a", "q4"), ("q4", "d", "q5"),  # q5 is final
+    ("A", "a", "D"), ("D", "d", "G"),
     # Branch 3: bbd
-    ("q0", "b", "q6"), ("q6", "b", "q7"), ("q7", "d", "q8"),  # q8 is final
+    ("A", "b", "E"), ("E", "b", "F"), ("F", "d", "G"),
 ]
 
 
 def build_nfa():
-    """Return the NFA: states q0..q8, start q0, finals q3, q5, q8."""
-    nfa = Automaton([f"q{i}" for i in range(9)], ["a", "b", "c", "d"], "q0", {"q3", "q5", "q8"})
+    """Return the NFA: states A..G, start A, final G."""
+    nfa = Automaton(list("ABCDEFG"), ["a", "b", "c", "d"], "A", {"G"})
     for src, symbol, dst in TRANSITIONS:
         nfa.add(src, symbol, dst)
     return nfa
